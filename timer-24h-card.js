@@ -262,24 +262,12 @@ class Timer24HCard extends HTMLElement {
     if (!shadowRoot) return;
     
     // Wait for DOM to be ready
-    if (!shadowRoot.querySelector('#current-time')) {
+    if (!shadowRoot.querySelector('#home-status')) {
       setTimeout(() => this.updateDisplay(), 100);
       return;
     }
 
-    // Update current time
-    const timeDisplay = shadowRoot.querySelector('#current-time');
-    if (timeDisplay) {
-      timeDisplay.textContent = `${this.formatTime(this.currentTime.getHours())}:${this.formatTime(this.currentTime.getMinutes())}`;
-    }
 
-    // Update status
-    const statusDisplay = shadowRoot.querySelector('#status');
-    if (statusDisplay) {
-      const isActive = this.isCurrentTimeSlotActive();
-      statusDisplay.textContent = isActive ? 'Active' : 'Inactive';
-      statusDisplay.className = isActive ? 'status active' : 'status inactive';
-    }
 
     // Update home status
     const homeStatus = shadowRoot.querySelector('#home-status');
@@ -290,28 +278,13 @@ class Timer24HCard extends HTMLElement {
 
 
 
-    // Update summary
-    this.updateSummary();
+
 
     // Update sectors
     this.updateSectors();
   }
 
-  updateSummary() {
-    const shadowRoot = this.shadowRoot;
-    if (!shadowRoot) return;
 
-    const activeTimes = shadowRoot.querySelector('#active-times');
-    const activeCount = shadowRoot.querySelector('#active-count');
-    
-    if (activeTimes && activeCount) {
-      const activeSlots = this.timeSlots.filter(slot => slot.isActive);
-      activeTimes.textContent = activeSlots.length > 0 
-        ? activeSlots.map(slot => this.getTimeLabel(slot.hour, slot.minute)).join(', ')
-        : 'No active times';
-      activeCount.textContent = `${activeSlots.length} segments`;
-    }
-  }
 
   updateSectors() {
     const shadowRoot = this.shadowRoot;
@@ -387,28 +360,7 @@ class Timer24HCard extends HTMLElement {
           color: var(--primary-text-color);
         }
         
-        .current-time {
-          font-size: 2rem;
-          font-weight: bold;
-          color: var(--primary-color);
-          text-align: center;
-          margin: 16px 0;
-        }
-        
-        .status {
-          font-size: 1.2rem;
-          font-weight: bold;
-          text-align: center;
-          margin: 8px 0;
-        }
-        
-        .status.active {
-          color: #10b981;
-        }
-        
-        .status.inactive {
-          color: #ef4444;
-        }
+
         
         .home-status {
           font-size: 0.9rem;
@@ -452,33 +404,7 @@ class Timer24HCard extends HTMLElement {
         
 
         
-        .summary {
-          margin-top: 20px;
-          padding: 12px;
-          background: var(--secondary-background-color, #f5f5f5);
-          border-radius: 8px;
-        }
-        
-        .summary-title {
-          font-weight: bold;
-          margin-bottom: 8px;
-        }
-        
-        .summary-row {
-          margin: 4px 0;
-          font-size: 0.9rem;
-        }
-        
-        .instructions {
-          margin-top: 16px;
-          font-size: 0.9rem;
-          color: var(--secondary-text-color);
-          text-align: center;
-        }
-        
-        .instructions p {
-          margin: 4px 0;
-        }
+
       </style>
       
       <div class="card">
@@ -487,8 +413,7 @@ class Timer24HCard extends HTMLElement {
           <div id="home-status" class="home-status"></div>
         </div>
         
-        <div id="current-time" class="current-time"></div>
-        <div id="status" class="status"></div>
+
         
         <div class="timer-container">
           <svg class="timer-svg" viewBox="0 0 400 400">
@@ -543,18 +468,7 @@ class Timer24HCard extends HTMLElement {
           </svg>
         </div>
         
-        <div class="summary">
-          <div class="summary-title">Settings Summary</div>
-          <div class="summary-row">Active times: <span id="active-times"></span></div>
-          <div class="summary-row">Total active segments: <span id="active-count"></span></div>
-          <div class="summary-row">Controlled entities: ${this.config.entities.length}</div>
-        </div>
-        
-        <div class="instructions">
-          <p><strong>Outer circle:</strong> Full hours | <strong>Inner circle:</strong> Half hours</p>
-          <p>Click directly on segments to activate/deactivate</p>
-          <p>Entities will only be activated when you are at home</p>
-        </div>
+
       </div>
     `;
 
