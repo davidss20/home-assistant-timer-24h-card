@@ -595,40 +595,37 @@ class Timer24HCard extends HTMLElement {
 
   async loadFromHAStorage() {
     try {
-      if (!this._syncKey || !this._hass?.auth?.accessToken) {
-        console.log('⚠️ HA HTTP API not available, using localStorage');
+      if (!this._syncKey || !this._hass) {
+        console.log('⚠️ HA not available, using localStorage');
         this.loadFromLocalStorage();
         return;
       }
       
-      console.log('🌐 Loading from HA via HTTP API...');
+      console.log('🌐 Loading from HA notification...');
       
-      const response = await fetch(`${this._hass.hassUrl}/api/states/sensor.${this._syncKey}`, {
-        headers: {
-          'Authorization': `Bearer ${this._hass.auth.accessToken}`
-        }
-      });
-      
-      if (response.ok) {
-        const entityData = await response.json();
-        if (entityData.attributes?.timer_data) {
-          const syncData = JSON.parse(entityData.attributes.timer_data);
+      // Check if notification exists
+      const notifications = this._hass.states['persistent_notification.' + this._syncKey];
+      if (notifications && notifications.attributes?.message) {
+        try {
+          const syncData = JSON.parse(notifications.attributes.message);
           
-          console.log('✅ Loaded data from HA storage');
+          console.log('✅ Loaded data from HA notification');
           this.timeSlots = syncData.timeSlots || this.timeSlots;
           this._lastKnownState = JSON.stringify(this.timeSlots);
           
           this.updateDisplay();
           this.controlEntities();
           return;
+        } catch (parseError) {
+          console.log('⚠️ Failed to parse notification data');
         }
       }
       
-      console.log('⚠️ No data found in HA storage, using localStorage');
+      console.log('⚠️ No notification found, using localStorage');
       this.loadFromLocalStorage();
       
     } catch (error) {
-      console.warn('⚠️ Failed to load from HA storage:', error);
+      console.warn('⚠️ Failed to load from HA notification:', error);
       this.loadFromLocalStorage();
     }
   }
@@ -726,28 +723,28 @@ class Timer24HCard extends HTMLElement {
     // Always set up localStorage sync (works immediately)
     this.setupLocalStorageSync();
     
-    // Set up HTTP-based sync for cross-device synchronization
-    this.setupHTTPSync();
+    // Set up notification-based sync for cross-device synchronization
+    this.setupNotificationSync();
     
     console.log('🔄 Real-time sync enabled for', cardId);
   }
 
-  setupHTTPSync() {
+  setupNotificationSync() {
     if (!this._hass) {
       console.log('⚠️ HASS not available, using localStorage only');
       return;
     }
 
     try {
-      // Set up HTTP-based sync checking
+      // Set up notification-based sync checking
       this._syncCheckInterval = setInterval(() => {
         this.checkHTTPSync();
-      }, 3000); // Check every 3 seconds
+      }, 2000); // Check every 2 seconds
       
-      console.log('✅ HTTP sync enabled for cross-device synchronization');
+      console.log('✅ Notification sync enabled for cross-device synchronization');
       console.log('🔍 Sync key:', this._syncKey);
     } catch (error) {
-      console.warn('⚠️ Could not set up HTTP sync:', error);
+      console.warn('⚠️ Could not set up notification sync:', error);
     }
   }
 
@@ -759,54 +756,34 @@ class Timer24HCard extends HTMLElement {
         device: `device_${Date.now() % 10000}`
       };
       
-      console.log('🌐 Saving to HA via HTTP API...');
+      console.log('🌐 Saving via persistent notification...');
       
-      // Use HA's REST API to store data
-      const response = await fetch(`${this._hass.hassUrl}/api/states/sensor.${this._syncKey}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this._hass.auth.accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          state: 'synced',
-          attributes: {
-            timer_data: JSON.stringify(syncData),
-            last_updated: new Date().toISOString(),
-            friendly_name: `Timer Sync ${this.config.title}`
-          }
-        })
+      // Use persistent notification as storage - simple and reliable
+      await this._hass.callService('persistent_notification', 'create', {
+        notification_id: this._syncKey,
+        title: `Timer Sync ${this.config.title}`,
+        message: JSON.stringify(syncData)
       });
       
-      if (response.ok) {
-        console.log('✅ Successfully saved to HA storage');
-        this._lastSentData = JSON.stringify(state.timeSlots);
-      } else {
-        console.warn('⚠️ Failed to save to HA storage:', response.status);
-      }
+      console.log('✅ Saved to HA notification storage');
+      this._lastSentData = JSON.stringify(state.timeSlots);
       
     } catch (error) {
-      console.warn('⚠️ HTTP save failed:', error);
+      console.warn('⚠️ Notification save failed:', error);
     }
   }
 
   async checkHTTPSync() {
     try {
-      if (!this._hass || !this._hass.auth?.accessToken) {
+      if (!this._hass) {
         return;
       }
       
-      // Check HA's REST API for updates
-      const response = await fetch(`${this._hass.hassUrl}/api/states/sensor.${this._syncKey}`, {
-        headers: {
-          'Authorization': `Bearer ${this._hass.auth.accessToken}`
-        }
-      });
-      
-      if (response.ok) {
-        const entityData = await response.json();
-        if (entityData.attributes?.timer_data) {
-          const syncData = JSON.parse(entityData.attributes.timer_data);
+      // Check persistent notifications for sync data
+      const notifications = this._hass.states['persistent_notification.' + this._syncKey];
+      if (notifications && notifications.attributes?.message) {
+        try {
+          const syncData = JSON.parse(notifications.attributes.message);
           const newStateStr = JSON.stringify(syncData.timeSlots);
           const currentStateStr = JSON.stringify(this.timeSlots);
           
@@ -815,7 +792,7 @@ class Timer24HCard extends HTMLElement {
               newStateStr !== this._lastKnownState && 
               newStateStr !== this._lastSentData) {
             
-            console.log('🔄 Detected HTTP sync from another device');
+            console.log('🔄 Detected notification sync from another device');
             console.log('📱 Updating from device:', syncData.device);
             
             this.timeSlots = syncData.timeSlots;
@@ -823,10 +800,12 @@ class Timer24HCard extends HTMLElement {
             this.updateDisplay();
             this.controlEntities();
           }
+        } catch (parseError) {
+          // Ignore parsing errors
         }
       }
     } catch (error) {
-      // Ignore errors - network issues, etc.
+      // Ignore errors
     }
   }
 
