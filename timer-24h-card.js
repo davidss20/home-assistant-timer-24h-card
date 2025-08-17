@@ -298,6 +298,17 @@ class Timer24HCard extends HTMLElement {
       this.lastControlledStates.clear();
       
       this.controlEntities();
+      
+      // Force immediate sync when user makes changes
+      if (this._hass && this.config.save_to_ha !== false) {
+        console.log('🔄 User made change - forcing immediate sync');
+        setTimeout(() => {
+          this.saveToHAStorage({
+            timeSlots: this.timeSlots,
+            timestamp: Date.now()
+          });
+        }, 100); // Small delay to ensure state is saved
+      }
     }
   }
 
@@ -418,20 +429,24 @@ class Timer24HCard extends HTMLElement {
       const syncData = {
         timeSlots: state.timeSlots,
         timestamp: Date.now(),
-        device: `device_${Date.now() % 10000}`
+        device: this._deviceId || this.generateDeviceId(),
+        cardTitle: this.config.title
       };
       
-      console.log('🌐 Saving via persistent notification...');
+      console.log('🌐 Saving sync data to Home Assistant...');
+      console.log('📱 Device ID:', syncData.device);
+      console.log('⏰ Timestamp:', new Date(syncData.timestamp).toLocaleString());
       
       // Use persistent notification as storage - simple and reliable
       await this._hass.callService('persistent_notification', 'create', {
         notification_id: this._syncKey,
-        title: `Timer Sync ${this.config.title}`,
+        title: `Timer Sync: ${this.config.title}`,
         message: JSON.stringify(syncData)
       });
       
-      console.log('✅ Saved to HA notification storage');
+      console.log('✅ Sync data saved to Home Assistant');
       this._lastSentData = JSON.stringify(state.timeSlots);
+      this._lastSyncTimestamp = syncData.timestamp;
       
     } catch (error) {
       console.warn('⚠️ Notification save failed:', error);
@@ -478,8 +493,16 @@ class Timer24HCard extends HTMLElement {
     console.log('🔄 SETUP SYNC DEBUG:', {
       has_hass: !!this._hass,
       save_to_ha: this.config.save_to_ha,
-      title: this.config.title
+      title: this.config.title,
+      current_timeSlots: this.timeSlots.filter(slot => slot.isActive).length
     });
+    
+    // Show sync status to user
+    if (this._hass && this.config.save_to_ha !== false) {
+      console.log('✅ Cross-device sync is ENABLED');
+    } else {
+      console.log('⚠️ Cross-device sync is DISABLED - only localStorage sync active');
+    }
     
     const cardId = this.config.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
     this._lastKnownState = JSON.stringify(this.timeSlots);
@@ -501,13 +524,17 @@ class Timer24HCard extends HTMLElement {
     }
 
     try {
-      // Set up notification-based sync checking
+      // Set up notification-based sync checking - more frequent for better sync
       this._syncCheckInterval = setInterval(() => {
         this.checkNotificationSync();
-      }, 2000); // Check every 2 seconds
+      }, 1000); // Check every 1 second for faster sync
+      
+      // Generate a more unique device ID
+      this._deviceId = this.generateDeviceId();
       
       console.log('✅ Notification sync enabled for cross-device synchronization');
       console.log('🔍 Sync key:', this._syncKey);
+      console.log('📱 Device ID:', this._deviceId);
     } catch (error) {
       console.warn('⚠️ Could not set up notification sync:', error);
     }
@@ -524,29 +551,62 @@ class Timer24HCard extends HTMLElement {
       if (notifications && notifications.attributes?.message) {
         try {
           const syncData = JSON.parse(notifications.attributes.message);
+          
+          // Validate sync data
+          if (!syncData.timeSlots || !Array.isArray(syncData.timeSlots)) {
+            console.warn('⚠️ Invalid sync data format');
+            return;
+          }
+          
           const newStateStr = JSON.stringify(syncData.timeSlots);
           const currentStateStr = JSON.stringify(this.timeSlots);
+          const currentDeviceId = this._deviceId || this.generateDeviceId();
           
-          // Only update if data is different and not from this device
-          if (newStateStr !== currentStateStr && 
-              newStateStr !== this._lastKnownState && 
-              newStateStr !== this._lastSentData) {
-            
-            console.log('🔄 Detected notification sync from another device');
-            console.log('📱 Updating from device:', syncData.device);
+          // Only update if:
+          // 1. Data is different from current state
+          // 2. Data is not from this device
+          // 3. Data is newer than our last known state
+          const isDifferentData = newStateStr !== currentStateStr;
+          const isFromOtherDevice = syncData.device !== currentDeviceId;
+          const isNewerData = !this._lastSyncTimestamp || syncData.timestamp > this._lastSyncTimestamp;
+          
+          if (isDifferentData && isFromOtherDevice && isNewerData) {
+            console.log('🔄 Syncing from another device');
+            console.log('📱 Source device:', syncData.device);
+            console.log('📱 Current device:', currentDeviceId);
+            console.log('⏰ Sync timestamp:', new Date(syncData.timestamp).toLocaleString());
             
             this.timeSlots = syncData.timeSlots;
             this._lastKnownState = newStateStr;
+            this._lastSyncTimestamp = syncData.timestamp;
             this.updateDisplay();
             this.controlEntities();
+            
+            // Save to localStorage as well for backup
+            this.saveState();
           }
         } catch (parseError) {
-          // Ignore parsing errors
+          console.warn('⚠️ Failed to parse sync data:', parseError);
         }
       }
     } catch (error) {
-      // Ignore errors
+      console.warn('⚠️ Error in notification sync check:', error);
     }
+  }
+
+  generateDeviceId() {
+    // Create a more unique device ID based on browser and timestamp
+    const browserInfo = navigator.userAgent.substring(0, 50);
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 8);
+    const deviceId = `${browserInfo}_${timestamp}_${random}`.replace(/[^a-zA-Z0-9_]/g, '_').substring(0, 30);
+    
+    // Store in session storage so it's consistent during the session
+    if (!sessionStorage.getItem('timer_device_id')) {
+      sessionStorage.setItem('timer_device_id', deviceId);
+    }
+    
+    return sessionStorage.getItem('timer_device_id');
   }
 
   setupLocalStorageSync() {
