@@ -86,9 +86,10 @@ class Timer24HCard extends HTMLElement {
       
       let isTrue;
       
-      // Special handling for jewish calendar sensor - it should be OFF (no issur melacha)
+      // Special handling for jewish calendar sensor - ON means automation is allowed
       if (sensorId === 'binary_sensor.jewish_calendar_issur_melacha_in_effect') {
-        isTrue = sensor.state.toLowerCase() === 'off';
+        isTrue = sensor.state.toLowerCase() === 'on';
+        console.log(`Timer Card Debug: Jewish calendar sensor ${sensorId} state: ${sensor.state}, isTrue: ${isTrue}`);
       } else {
         // Regular sensors - ON means at home/present
         isTrue = ['on', 'home', 'true', '1', 'yes'].includes(sensor.state.toLowerCase());
@@ -325,7 +326,9 @@ class Timer24HCard extends HTMLElement {
 
       // Special handling for Jewish calendar sensor
       if (sensorId === 'binary_sensor.jewish_calendar_issur_melacha_in_effect') {
-        return entity.state === 'off'; // Off means no issur melacha (allowed)
+        const isAllowed = entity.state === 'on'; // ON means automation is allowed
+        console.log(`Timer Card: Jewish calendar sensor state: ${entity.state}, automation allowed: ${isAllowed}`);
+        return isAllowed;
       }
 
       // For other sensors, check if they indicate "home" or "on"
