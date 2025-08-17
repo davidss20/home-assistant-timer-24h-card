@@ -234,7 +234,7 @@ class Timer24HCard extends HTMLElement {
     const triangle = shadowRoot.querySelector('#triangle');
     if (triangle) {
       triangle.style.transform = `translate(-50%, -50%) rotate(${this.getCurrentAngle()}deg)`;
-      triangle.className = this.isCurrentTimeSlotActive() ? 'triangle active' : 'triangle inactive';
+      triangle.setAttribute('class', this.isCurrentTimeSlotActive() ? 'triangle active' : 'triangle inactive');
     }
 
     // Update summary

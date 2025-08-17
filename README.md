@@ -20,7 +20,7 @@ A custom card for Home Assistant that allows you to set a daily schedule with au
 1. Open HACS in Home Assistant
 2. Go to "Frontend" 
 3. Click "+" and choose "Add custom repository"
-4. Add the link: `https://github.com/YOUR-USERNAME/timer-24h-card`
+4. Add the link: `https://github.com/davidss20/home-assistant-timer-card`
 5. Choose category: "Lovelace"
 6. Install "Timer 24H Card"
 7. **Restart Home Assistant**
