@@ -887,7 +887,7 @@ customElements.define('timer-24h-card', Timer24HCard);
 
 // Add card info to console
 console.info(
-  '%c  TIMER-24H-CARD  %c  Version 1.1.0  ',
+  '%c  TIMER-24H-CARD  %c  Version 1.2.0  ',
   'color: orange; font-weight: bold; background: black',
   'color: white; font-weight: bold; background: dimgray',
 );
