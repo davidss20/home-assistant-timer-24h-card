@@ -244,22 +244,30 @@ If the card shows English instead of Hebrew:
 
 Keep your timer settings synced across all devices (phone, tablet, computer)!
 
-### 🚀 Advanced Server Storage (Recommended)
+### ⚡ Quick Sync Setup (Recommended)
 
-For true server-side storage with real-time sync:
+Simple 5-minute setup for cross-device synchronization:
 
 #### Quick Setup:
-1. **Install custom component**: [Advanced Setup Guide →](ADVANCED_SYNC_SETUP.md)
-2. **Add to `configuration.yaml`**:
+1. **Add to `configuration.yaml`**:
    ```yaml
-   timer_card_storage:
+   input_text:
+     timer_card_lighting_timer_data:
+       name: "Lighting Timer Data"
+       max: 10000
+     timer_card_lighting_timer_backup:
+       name: "Lighting Timer Backup" 
+       max: 10000
    ```
+2. **Restart Home Assistant**
 3. **Configure card**:
    ```yaml
    type: custom:timer-24h-card
-   title: "Lighting Timer"
-   save_to_ha: true        # Enable server sync
+   title: "Lighting Timer"  # Must match entity names
+   save_to_ha: true         # Enable sync
    ```
+
+> 📖 **[5-Minute Setup Guide →](QUICK_SYNC_SETUP.md)**
 
 ### 🏠 Basic Home Assistant Sync (Alternative)
 

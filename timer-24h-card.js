@@ -313,6 +313,8 @@ class Timer24HCard extends HTMLElement {
       // Try to save to Home Assistant first
       if (this._hass && this.config.save_to_ha !== false) {
         this.saveToHomeAssistant(state);
+        // Update our known state to prevent sync loops
+        this._lastKnownState = JSON.stringify(state.timeSlots);
       } else {
         // Fallback to localStorage
         localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(state));
@@ -325,41 +327,76 @@ class Timer24HCard extends HTMLElement {
     try {
       const cardId = this.config.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
       
-      // Try new storage service first
-      if (this._hass.services?.timer_card_storage?.save) {
-        await this._hass.callService('timer_card_storage', 'save', {
-          card_id: cardId,
-          data: state
-        });
-        console.log('✅ Timer Card: State saved to server storage:', cardId);
-        return;
+      // Use multiple input_text entities for better reliability
+      const entityIds = [
+        `input_text.timer_card_${cardId}_data`,
+        `input_text.timer_card_${cardId}_backup`
+      ];
+      
+      const stateJson = JSON.stringify(state);
+      let savedSuccessfully = false;
+      
+      // Try to save to multiple entities for redundancy
+      for (const entityId of entityIds) {
+        try {
+          // Create entity if it doesn't exist
+          if (!this._hass.states[entityId]) {
+            console.log(`📝 Creating entity: ${entityId}`);
+            await this.createInputTextEntity(entityId);
+          }
+          
+          if (this._hass.states[entityId]) {
+            await this._hass.callService('input_text', 'set_value', {
+              entity_id: entityId,
+              value: stateJson
+            });
+            console.log(`✅ Timer Card: State saved to ${entityId}`);
+            savedSuccessfully = true;
+          }
+        } catch (error) {
+          console.warn(`⚠️ Failed to save to ${entityId}:`, error);
+        }
       }
       
-      // Fallback to input_text method
-      const entityId = `input_text.timer_24h_card_${cardId}`;
-      
-      // Check if entity exists
-      if (!this._hass.states[entityId]) {
-        console.warn('⚠️ Timer Card: No storage service or entity found');
-        console.log('📝 Install timer_card_storage component or create entity:');
-        console.log(`input_text:\n  timer_24h_card_${cardId}:\n    name: "${this.config.title} Timer State"\n    max: 10000`);
+      if (!savedSuccessfully) {
+        console.warn('⚠️ Timer Card: No entities available, creating them...');
+        console.log('📝 Add to configuration.yaml:');
+        console.log(`input_text:`);
+        for (const entityId of entityIds) {
+          const name = entityId.replace('input_text.', '').replace(/_/g, ' ');
+          console.log(`  ${entityId.replace('input_text.', '')}:`);
+          console.log(`    name: "${name}"`);
+          console.log(`    max: 10000`);
+        }
         
         // Fallback to localStorage
         localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(state));
-        return;
       }
       
-      // Save state to the entity
-      await this._hass.callService('input_text', 'set_value', {
-        entity_id: entityId,
-        value: JSON.stringify(state)
-      });
-      
-      console.log('✅ Timer Card: State saved to Home Assistant entity:', entityId);
     } catch (error) {
       console.warn('⚠️ Timer Card: Failed to save to HA, using localStorage fallback:', error);
-      // Fallback to localStorage
       localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(state));
+    }
+  }
+
+  async createInputTextEntity(entityId) {
+    try {
+      // Try to create using the persistent_notification service as a workaround
+      const message = `Please add this to your configuration.yaml and restart Home Assistant:
+
+input_text:
+  ${entityId.replace('input_text.', '')}:
+    name: "${this.config.title} Timer Data"
+    max: 10000`;
+      
+      await this._hass.callService('persistent_notification', 'create', {
+        title: 'Timer Card Setup Required',
+        message: message,
+        notification_id: `timer_card_setup_${entityId}`
+      });
+      
+    } catch (error) {
+      console.log('Could not create setup notification:', error);
     }
   }
 
@@ -375,51 +412,35 @@ class Timer24HCard extends HTMLElement {
     }
   }
 
-  async loadFromHomeAssistant() {
+  loadFromHomeAssistant() {
     try {
       const cardId = this.config.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
       
-      // Try new storage service first
-      if (this._hass.services?.timer_card_storage?.load) {
-        // Listen for the data loaded event
-        const eventListener = (event) => {
-          if (event.data.card_id === cardId && event.data.data?.timeSlots) {
-            this.timeSlots = event.data.data.timeSlots;
-            console.log('✅ Timer Card: State loaded from server storage:', cardId);
-            this.updateDisplay();
-            // Remove listener after receiving data
-            this._hass.connection.removeEventListener('timer_card_data_loaded', eventListener);
+      // Try to load from multiple input_text entities
+      const entityIds = [
+        `input_text.timer_card_${cardId}_data`,
+        `input_text.timer_card_${cardId}_backup`
+      ];
+      
+      for (const entityId of entityIds) {
+        try {
+          const entity = this._hass.states[entityId];
+          
+          if (entity && entity.state && entity.state !== 'unknown' && entity.state !== '') {
+            const state = JSON.parse(entity.state);
+            if (state.timeSlots) {
+              this.timeSlots = state.timeSlots;
+              console.log(`✅ Timer Card: State loaded from ${entityId}`);
+              return;
+            }
           }
-        };
-        
-        // Add event listener
-        this._hass.connection.addEventListener('timer_card_data_loaded', eventListener);
-        
-        // Request data load
-        await this._hass.callService('timer_card_storage', 'load', {
-          card_id: cardId
-        });
-        
-        // Wait a bit for the event, then continue with fallback if needed
-        setTimeout(() => {
-          this._hass.connection.removeEventListener('timer_card_data_loaded', eventListener);
-        }, 2000);
-        
-        return;
-      }
-      
-      // Fallback to input_text method
-      const entityId = `input_text.timer_24h_card_${cardId}`;
-      const entity = this._hass.states[entityId];
-      
-      if (entity && entity.state && entity.state !== 'unknown' && entity.state !== '') {
-        const state = JSON.parse(entity.state);
-        if (state.timeSlots) {
-          this.timeSlots = state.timeSlots;
-          console.log('✅ Timer Card: State loaded from Home Assistant entity:', entityId);
-          return;
+        } catch (error) {
+          console.warn(`⚠️ Failed to load from ${entityId}:`, error);
         }
       }
+      
+      console.log('⚠️ Timer Card: No valid data found in Home Assistant entities');
+      
     } catch (error) {
       console.warn('⚠️ Timer Card: Failed to load from HA, trying localStorage:', error);
     }
@@ -450,34 +471,58 @@ class Timer24HCard extends HTMLElement {
     if (!this._hass || !this.config.save_to_ha) return;
     
     const cardId = this.config.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    this._lastKnownState = JSON.stringify(this.timeSlots);
     
-    // Listen for real-time updates from other devices
-    const syncListener = (event) => {
-      if (event.data.card_id === cardId && event.data.data?.timeSlots) {
-        // Only update if the data is different and newer
-        const currentTime = this.timeSlots.reduce((acc, slot) => acc + (slot.isActive ? 1 : 0), 0);
-        const newTime = event.data.data.timeSlots.reduce((acc, slot) => acc + (slot.isActive ? 1 : 0), 0);
+    // Monitor entity state changes for sync
+    this._entityCheckInterval = setInterval(() => {
+      this.checkForEntityChanges();
+    }, 5000); // Check every 5 seconds
+    
+    console.log('🔄 Timer Card: Real-time sync enabled for', cardId);
+  }
+
+  checkForEntityChanges() {
+    if (!this._hass) return;
+    
+    const cardId = this.config.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const entityIds = [
+      `input_text.timer_card_${cardId}_data`,
+      `input_text.timer_card_${cardId}_backup`
+    ];
+    
+    for (const entityId of entityIds) {
+      try {
+        const entity = this._hass.states[entityId];
         
-        if (currentTime !== newTime) {
-          console.log('🔄 Timer Card: Syncing from another device:', cardId);
-          this.timeSlots = event.data.data.timeSlots;
-          this.updateDisplay();
-          this.controlEntities();
+        if (entity && entity.state && entity.state !== 'unknown' && entity.state !== '') {
+          const entityState = JSON.parse(entity.state);
+          const currentState = JSON.stringify(this.timeSlots);
+          const entityStateStr = JSON.stringify(entityState.timeSlots || []);
+          
+          // Check if entity data is different from our current state
+          if (entityStateStr !== currentState && entityStateStr !== this._lastKnownState) {
+            console.log('🔄 Timer Card: Detected change from another device via', entityId);
+            
+            if (entityState.timeSlots) {
+              this.timeSlots = entityState.timeSlots;
+              this._lastKnownState = entityStateStr;
+              this.updateDisplay();
+              this.controlEntities();
+            }
+            return; // Stop checking other entities once we found a change
+          }
         }
+      } catch (error) {
+        // Ignore parsing errors
       }
-    };
-    
-    // Add event listener for real-time sync
-    if (this._hass.connection) {
-      this._hass.connection.addEventListener('timer_card_data_saved', syncListener);
-      
-      // Store listener reference for cleanup
-      this._syncListener = syncListener;
     }
   }
 
   disconnectedCallback() {
-    // Clean up event listener when component is removed
+    // Clean up intervals and event listeners
+    if (this._entityCheckInterval) {
+      clearInterval(this._entityCheckInterval);
+    }
     if (this._hass?.connection && this._syncListener) {
       this._hass.connection.removeEventListener('timer_card_data_saved', this._syncListener);
     }
