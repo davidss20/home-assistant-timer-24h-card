@@ -269,23 +269,60 @@ class Timer24HCard extends HTMLElement {
     return { x, y };
   }
 
+  getAutomationStatus() {
+    // Check if we have entities to control
+    if (!this.config.entities || this.config.entities.length === 0) {
+      return 'no-entities';
+    }
+
+    // Check current time slot
+    const currentHour = this.currentTime.getHours();
+    const currentMinute = this.currentTime.getMinutes();
+    const halfHour = currentMinute >= 30 ? 30 : 0;
+    
+    const currentSlot = this.timeSlots.find(slot => 
+      slot.hour === currentHour && slot.minute === halfHour
+    );
+
+    // Simple check: is current time slot active?
+    if (currentSlot && currentSlot.isActive) {
+      return 'will-activate';
+    } else {
+      return 'will-not-activate';
+    }
+  }
+
+  getAutomationStatusText() {
+    const status = this.getAutomationStatus();
+    
+    switch (status) {
+      case 'will-activate':
+        return '🟢 ON';
+      case 'will-not-activate':
+        return '🔴 OFF';
+      case 'no-entities':
+        return '⚙️ NO SETUP';
+      default:
+        return '❓ ERROR';
+    }
+  }
+
   updateDisplay() {
     const shadowRoot = this.shadowRoot;
     if (!shadowRoot) return;
     
     // Wait for DOM to be ready
-    if (!shadowRoot.querySelector('#home-status')) {
+    if (!shadowRoot.querySelector('#automation-status')) {
       setTimeout(() => this.updateDisplay(), 100);
       return;
     }
 
-
-
-    // Update home status
-    const homeStatus = shadowRoot.querySelector('#home-status');
-    if (homeStatus) {
-      homeStatus.textContent = this.isAtHome ? 'At Home' : 'Away';
-      homeStatus.className = this.isAtHome ? 'home-status home' : 'home-status away';
+    // Update automation status
+    const automationStatus = shadowRoot.querySelector('#automation-status');
+    if (automationStatus) {
+      const status = this.getAutomationStatus();
+      automationStatus.textContent = this.getAutomationStatusText();
+      automationStatus.className = `automation-status ${status}`;
     }
 
 
@@ -383,18 +420,42 @@ class Timer24HCard extends HTMLElement {
         
 
         
-        .home-status {
-          font-size: 0.7rem;
+        .automation-status {
+          font-size: 0.6rem;
           text-align: center;
           margin: 0;
+          padding: 1px 4px;
+          border-radius: 6px;
+          font-weight: 500;
+          min-width: 60px;
         }
         
-        .home-status.home {
-          color: #10b981;
+        .automation-status.will-activate {
+          color: white;
+          background: #059669;
+          animation: pulse 2s infinite;
+          box-shadow: 0 0 8px rgba(5, 150, 105, 0.4);
         }
         
-        .home-status.away {
-          color: #f59e0b;
+        .automation-status.will-not-activate {
+          color: white;
+          background: #dc2626;
+        }
+        
+        .automation-status.no-entities {
+          color: white;
+          background: #6b7280;
+        }
+        
+        @keyframes pulse {
+          0%, 100% { 
+            opacity: 1; 
+            transform: scale(1);
+          }
+          50% { 
+            opacity: 0.8; 
+            transform: scale(1.02);
+          }
         }
         
         .timer-container {
@@ -444,8 +505,10 @@ class Timer24HCard extends HTMLElement {
             font-size: 0.7rem;
           }
           
-          .home-status {
-            font-size: 0.5rem;
+          .automation-status {
+            font-size: 0.4rem;
+            padding: 1px 2px;
+            min-width: 40px;
           }
         }
         
@@ -454,8 +517,10 @@ class Timer24HCard extends HTMLElement {
             font-size: 1rem;
           }
           
-          .home-status {
-            font-size: 0.7rem;
+          .automation-status {
+            font-size: 0.6rem;
+            padding: 1px 4px;
+            min-width: 60px;
           }
           
           .header {
@@ -469,8 +534,10 @@ class Timer24HCard extends HTMLElement {
             font-size: 1.2rem;
           }
           
-          .home-status {
-            font-size: 0.8rem;
+          .automation-status {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            min-width: 70px;
           }
           
           .header {
@@ -484,7 +551,7 @@ class Timer24HCard extends HTMLElement {
       <div class="card">
         <div class="header">
           <div class="title">${this.config.title}</div>
-          <div id="home-status" class="home-status"></div>
+          <div id="automation-status" class="automation-status"></div>
         </div>
         
 

@@ -1,0 +1,29 @@
+<svg width="300" height="200" xmlns="http://www.w3.org/2000/svg">
+  <rect width="300" height="200" fill="#f1f5f9"/>
+  
+  <!-- Grid background -->
+  <defs>
+    <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
+      <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#e2e8f0" stroke-width="1" opacity="0.5"/>
+    </pattern>
+  </defs>
+  <rect width="300" height="200" fill="url(#grid)"/>
+  
+  <!-- Card in grid -->
+  <rect x="50" y="25" width="200" height="150" fill="white" rx="8" stroke="#3b82f6" stroke-width="2"/>
+  
+  <!-- Timer inside card -->
+  <circle cx="150" cy="100" r="50" fill="none" stroke="#e5e7eb" stroke-width="2"/>
+  <circle cx="150" cy="100" r="20" fill="none" stroke="#e5e7eb" stroke-width="1"/>
+  
+  <!-- Active segments -->
+  <path d="M 150 50 A 50 50 0 0 1 200 100 L 170 100 A 20 20 0 0 0 150 80 Z" fill="#10b981"/>
+  <path d="M 100 100 A 50 50 0 0 1 150 50 L 150 80 A 20 20 0 0 0 130 100 Z" fill="#10b981"/>
+  
+  <!-- Title -->
+  <text x="150" y="45" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#374151">Timer</text>
+  
+  <!-- Grid indicator -->
+  <text x="150" y="15" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#3b82f6">📱 Sections Grid Layout</text>
+  <text x="150" y="190" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#6b7280">2 rows × 6 columns</text>
+</svg>

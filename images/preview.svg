@@ -1,0 +1,31 @@
+<svg width="600" height="400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="600" height="400" fill="url(#bg)"/>
+  <rect x="50" y="50" width="500" height="300" fill="white" rx="20" opacity="0.95"/>
+  
+  <!-- Timer Circle -->
+  <circle cx="300" cy="200" r="100" fill="none" stroke="#e5e7eb" stroke-width="3"/>
+  <circle cx="300" cy="200" r="40" fill="none" stroke="#e5e7eb" stroke-width="2"/>
+  
+  <!-- Active segments -->
+  <path d="M 300 100 A 100 100 0 0 1 400 200 L 340 200 A 40 40 0 0 0 300 140 Z" fill="#10b981"/>
+  <path d="M 400 200 A 100 100 0 0 1 300 300 L 300 240 A 40 40 0 0 0 340 200 Z" fill="#10b981"/>
+  <path d="M 200 200 A 100 100 0 0 1 300 100 L 300 140 A 40 40 0 0 0 260 200 Z" fill="#10b981"/>
+  
+  <!-- Title -->
+  <text x="300" y="80" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#374151">🕐 Timer 24H Card</text>
+  
+  <!-- Status -->
+  <text x="300" y="370" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="#10b981">✓ At Home - Automatic Control Active</text>
+  
+  <!-- Time labels -->
+  <text x="300" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">00:00</text>
+  <text x="430" y="205" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">06:00</text>
+  <text x="300" y="340" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">12:00</text>
+  <text x="170" y="205" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">18:00</text>
+</svg>

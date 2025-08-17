@@ -1,0 +1,36 @@
+<svg width="300" height="250" xmlns="http://www.w3.org/2000/svg">
+  <rect width="300" height="250" fill="#f8fafc"/>
+  <rect x="10" y="10" width="280" height="230" fill="white" rx="8" stroke="#e5e7eb"/>
+  
+  <!-- Header -->
+  <rect x="20" y="20" width="260" height="30" fill="#3b82f6" rx="4"/>
+  <text x="150" y="38" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="white">🕐 Timer 24H Card Configuration</text>
+  
+  <!-- Form fields -->
+  <rect x="20" y="60" width="260" height="20" fill="#f3f4f6" rx="2"/>
+  <text x="25" y="72" font-family="Arial, sans-serif" font-size="10" fill="#6b7280">Card Title</text>
+  <rect x="20" y="75" width="260" height="18" fill="white" stroke="#d1d5db" rx="2"/>
+  <text x="25" y="86" font-family="Arial, sans-serif" font-size="9" fill="#374151">Lighting Timer</text>
+  
+  <!-- Entity list -->
+  <rect x="20" y="105" width="260" height="15" fill="#f3f4f6" rx="2"/>
+  <text x="25" y="115" font-family="Arial, sans-serif" font-size="10" fill="#6b7280">Entities to Control</text>
+  
+  <rect x="20" y="125" width="260" height="80" fill="white" stroke="#d1d5db" rx="2"/>
+  
+  <!-- Entity items -->
+  <circle cx="35" cy="140" r="4" fill="#10b981"/>
+  <text x="45" y="143" font-family="Arial, sans-serif" font-size="9" fill="#374151">💡 Living Room Light</text>
+  <text x="250" y="143" font-family="Arial, sans-serif" font-size="8" fill="#10b981">ON</text>
+  
+  <circle cx="35" cy="155" r="4" fill="#e5e7eb"/>
+  <text x="45" y="158" font-family="Arial, sans-serif" font-size="9" fill="#6b7280">🔌 Kitchen Switch</text>
+  <text x="250" y="158" font-family="Arial, sans-serif" font-size="8" fill="#6b7280">OFF</text>
+  
+  <circle cx="35" cy="170" r="4" fill="#10b981"/>
+  <text x="45" y="173" font-family="Arial, sans-serif" font-size="9" fill="#374151">🌀 Bedroom Fan</text>
+  <text x="250" y="173" font-family="Arial, sans-serif" font-size="8" fill="#10b981">ON</text>
+  
+  <!-- Footer -->
+  <text x="150" y="225" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#3b82f6">⚙️ Visual Configuration Editor</text>
+</svg>

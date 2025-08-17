@@ -1,0 +1,29 @@
+<svg width="200" height="300" xmlns="http://www.w3.org/2000/svg">
+  <!-- Phone frame -->
+  <rect width="200" height="300" fill="#1f2937" rx="25"/>
+  <rect x="10" y="20" width="180" height="260" fill="#f8fafc" rx="15"/>
+  
+  <!-- Status bar -->
+  <rect x="10" y="20" width="180" height="25" fill="#374151" rx="15 15 0 0"/>
+  <text x="100" y="35" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="white">📱 9:41 AM</text>
+  
+  <!-- Card content -->
+  <rect x="20" y="55" width="160" height="180" fill="white" rx="8" stroke="#e5e7eb"/>
+  
+  <!-- Timer -->
+  <circle cx="100" cy="135" r="45" fill="none" stroke="#e5e7eb" stroke-width="2"/>
+  <circle cx="100" cy="135" r="18" fill="none" stroke="#e5e7eb" stroke-width="1"/>
+  
+  <!-- Active segments -->
+  <path d="M 100 90 A 45 45 0 0 1 145 135 L 118 135 A 18 18 0 0 0 100 117 Z" fill="#10b981"/>
+  <path d="M 55 135 A 45 45 0 0 1 100 90 L 100 117 A 18 18 0 0 0 82 135 Z" fill="#10b981"/>
+  
+  <!-- Title -->
+  <text x="100" y="75" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#374151">Lighting Timer</text>
+  
+  <!-- Status -->
+  <text x="100" y="215" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#10b981">At Home</text>
+  
+  <!-- Bottom label -->
+  <text x="100" y="260" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#374151">📱 Mobile Responsive</text>
+</svg>
