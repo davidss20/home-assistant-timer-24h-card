@@ -340,6 +340,7 @@ class Timer24HCard extends HTMLElement {
           font-family: var(--primary-font-family, sans-serif);
         }
         
+        
         .card {
           background: var(--card-background-color, white);
           border-radius: var(--ha-card-border-radius, 12px);
