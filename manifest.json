@@ -1,0 +1,10 @@
+{
+  "domain": "timer_card_storage",
+  "name": "Timer Card Storage",
+  "version": "1.0.0",
+  "documentation": "https://github.com/davidss20/home-assistant-timer-24h-card",
+  "dependencies": [],
+  "codeowners": ["@davidss20"],
+  "requirements": [],
+  "iot_class": "local_push"
+}

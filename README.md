@@ -244,9 +244,27 @@ If the card shows English instead of Hebrew:
 
 Keep your timer settings synced across all devices (phone, tablet, computer)!
 
-### 🏠 Home Assistant Sync (Recommended)
+### 🚀 Advanced Server Storage (Recommended)
+
+For true server-side storage with real-time sync:
 
 #### Quick Setup:
+1. **Install custom component**: [Advanced Setup Guide →](ADVANCED_SYNC_SETUP.md)
+2. **Add to `configuration.yaml`**:
+   ```yaml
+   timer_card_storage:
+   ```
+3. **Configure card**:
+   ```yaml
+   type: custom:timer-24h-card
+   title: "Lighting Timer"
+   save_to_ha: true        # Enable server sync
+   ```
+
+### 🏠 Basic Home Assistant Sync (Alternative)
+
+For simple setup using input_text entities:
+
 1. **Add to `configuration.yaml`**:
    ```yaml
    input_text:
@@ -257,17 +275,15 @@ Keep your timer settings synced across all devices (phone, tablet, computer)!
 
 2. **Restart Home Assistant**
 
-3. **Configure card**:
-   ```yaml
-   type: custom:timer-24h-card
-   title: "Lighting Timer"  # Must match entity name
-   save_to_ha: true        # Enable HA sync
-   ```
+#### Advanced Storage Benefits:
+- **⚡ Real-time sync**: Changes appear instantly on all devices
+- **🏠 Server storage**: JSON files stored on Home Assistant server  
+- **🔄 WebSocket events**: Live updates via Home Assistant events
+- **📊 Manageable**: Easy backup, restore, and data management
 
-#### Benefits:
+#### Basic Sync Benefits:
 - **📱 Multi-device sync**: Same settings on phone, tablet, computer
-- **☁️ Cloud backup**: Settings stored safely in Home Assistant  
-- **🔄 Real-time sync**: Changes appear instantly on all devices
+- **💾 Entity storage**: Uses Home Assistant input_text entities
 - **🔒 Secure**: Data stays in your Home Assistant instance
 
 #### Entity Name Generation:
