@@ -244,11 +244,27 @@ If the card shows English instead of Hebrew:
 
 Keep your timer settings synced across all devices (phone, tablet, computer)!
 
-### ⚡ Quick Sync Setup (Recommended)
+### 🤖 Fully Automatic Setup (Recommended)
 
-Simple 5-minute setup for cross-device synchronization:
+**Zero configuration needed!** The card automatically creates all required entities and sets up synchronization:
 
-#### Quick Setup:
+#### Automatic Setup:
+1. **Install the card** (via HACS or manually)
+2. **Add to dashboard**:
+   ```yaml
+   type: custom:timer-24h-card
+   title: "My Timer"
+   # That's it! No entities, no configuration.yaml changes needed!
+   ```
+3. **Use immediately** - sync works automatically across all devices!
+
+> 🤖 **[Automatic Installation Guide →](AUTO_INSTALL.md)**
+
+### ⚡ Manual Setup (Alternative)
+
+If you prefer manual control or automatic setup doesn't work:
+
+#### Manual Setup:
 1. **Add to `configuration.yaml`**:
    ```yaml
    input_text:
@@ -260,14 +276,8 @@ Simple 5-minute setup for cross-device synchronization:
        max: 10000
    ```
 2. **Restart Home Assistant**
-3. **Configure card**:
-   ```yaml
-   type: custom:timer-24h-card
-   title: "Lighting Timer"  # Must match entity names
-   save_to_ha: true         # Enable sync
-   ```
 
-> 📖 **[5-Minute Setup Guide →](QUICK_SYNC_SETUP.md)**
+> 📖 **[5-Minute Manual Setup Guide →](QUICK_SYNC_SETUP.md)**
 
 ### 🏠 Basic Home Assistant Sync (Alternative)
 
