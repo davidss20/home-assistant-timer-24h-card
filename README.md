@@ -56,6 +56,8 @@ lovelace:
       type: module
 ```
 
+**⚠️ חשוב מאוד**: וודא ששני הקבצים נטענים - גם `timer-24h-card.js` וגם `timer-24h-card-editor.js`!
+
 4. **Restart Home Assistant**
 
 ## 📸 Screenshots

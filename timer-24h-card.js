@@ -580,6 +580,10 @@ class Timer24HCard extends HTMLElement {
     };
   }
   static getConfigElement() {
+    // Make sure the editor element is defined
+    if (!customElements.get('timer-24h-card-editor')) {
+      console.warn('timer-24h-card-editor not found, make sure timer-24h-card-editor.js is loaded');
+    }
     return document.createElement('timer-24h-card-editor');
   }
 
