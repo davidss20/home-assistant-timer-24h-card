@@ -535,6 +535,25 @@ class Timer24HCard extends HTMLElement {
       save_state: true
     };
   }
+
+  // Grid support for new Sections layout
+  static getLayoutOptions() {
+    return {
+      grid_rows: 2,
+      grid_columns: 6,
+      grid_min_rows: 2,
+      grid_min_columns: 3
+    };
+  }
+
+  static getGridOptions() {
+    return {
+      rows: 2,
+      columns: 6,
+      min_rows: 2,
+      min_columns: 3
+    };
+  }
 }
 
 customElements.define('timer-24h-card', Timer24HCard);
