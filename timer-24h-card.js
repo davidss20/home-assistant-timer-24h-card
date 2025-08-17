@@ -374,27 +374,111 @@ class Timer24HCard extends HTMLElement {
     }
   }
 
+  getCenterStatusInfo() {
+    const status = this.getAutomationStatus();
+    
+    switch (status) {
+      case 'will-activate':
+        return {
+          icon: '⚡',
+          text: 'WILL TURN ON',
+          bgColor: 'rgba(5, 150, 105, 0.15)',
+          borderColor: '#059669',
+          borderWidth: '3'
+        };
+      case 'will-not-activate':
+        // Check reason for more specific display
+        if (!this.currentTime) {
+          return {
+            icon: '⏳',
+            text: 'NOT READY',
+            bgColor: 'rgba(107, 114, 128, 0.15)',
+            borderColor: '#6b7280',
+            borderWidth: '2'
+          };
+        }
+        
+        const currentHour = this.currentTime.getHours();
+        const currentMinute = this.currentTime.getMinutes();
+        const halfHour = currentMinute >= 30 ? 30 : 0;
+        const currentSlot = this.timeSlots.find(slot => 
+          slot.hour === currentHour && slot.minute === halfHour
+        );
+        
+        if (!currentSlot || !currentSlot.isActive) {
+          return {
+            icon: '⏸️',
+            text: 'TIME INACTIVE',
+            bgColor: 'rgba(220, 38, 38, 0.15)',
+            borderColor: '#dc2626',
+            borderWidth: '2'
+          };
+        } else {
+          return {
+            icon: '🚫',
+            text: 'SENSORS BLOCK',
+            bgColor: 'rgba(245, 101, 101, 0.15)',
+            borderColor: '#f56565',
+            borderWidth: '2'
+          };
+        }
+      case 'no-entities':
+        return {
+          icon: '⚙️',
+          text: 'NO ENTITIES',
+          bgColor: 'rgba(107, 114, 128, 0.15)',
+          borderColor: '#6b7280',
+          borderWidth: '2'
+        };
+      default:
+        return {
+          icon: '❓',
+          text: 'ERROR',
+          bgColor: 'rgba(107, 114, 128, 0.15)',
+          borderColor: '#6b7280',
+          borderWidth: '2'
+        };
+    }
+  }
+
   updateDisplay() {
     const shadowRoot = this.shadowRoot;
     if (!shadowRoot) return;
     
     // Wait for DOM to be ready
-    if (!shadowRoot.querySelector('#automation-status')) {
+    if (!shadowRoot.querySelector('#center-status-text')) {
       setTimeout(() => this.updateDisplay(), 100);
       return;
     }
 
-    // Update automation status - with safety checks
-    const automationStatus = shadowRoot.querySelector('#automation-status');
-    if (automationStatus) {
+    // Update center status indicator - with safety checks
+    const statusText = shadowRoot.querySelector('#center-status-text');
+    const statusSubtext = shadowRoot.querySelector('#center-status-subtext');
+    const statusCircle = shadowRoot.querySelector('circle[r="45"]');
+    
+    if (statusText && statusSubtext && statusCircle) {
       try {
         const status = this.getAutomationStatus();
-        automationStatus.textContent = this.getAutomationStatusText();
-        automationStatus.className = `automation-status ${status}`;
+        const statusInfo = this.getCenterStatusInfo();
+        
+        statusText.textContent = statusInfo.icon;
+        statusSubtext.textContent = statusInfo.text;
+        statusCircle.setAttribute('fill', statusInfo.bgColor);
+        statusCircle.setAttribute('stroke', statusInfo.borderColor);
+        statusCircle.setAttribute('stroke-width', statusInfo.borderWidth);
+        
+        // Add pulsing animation for active status
+        if (status === 'will-activate') {
+          statusCircle.style.filter = 'drop-shadow(0 0 8px rgba(5, 150, 105, 0.6))';
+          statusCircle.style.animation = 'pulse 2s infinite';
+        } else {
+          statusCircle.style.filter = 'none';
+          statusCircle.style.animation = 'none';
+        }
       } catch (error) {
-        console.error('Timer Card: Error updating display:', error);
-        automationStatus.textContent = '❓ ERROR';
-        automationStatus.className = 'automation-status no-entities';
+        console.error('Timer Card: Error updating center display:', error);
+        statusText.textContent = '❓';
+        statusSubtext.textContent = 'ERROR';
       }
     }
 
@@ -493,31 +577,15 @@ class Timer24HCard extends HTMLElement {
         
 
         
-        .automation-status {
-          font-size: 0.6rem;
-          text-align: center;
-          margin: 0;
-          padding: 1px 4px;
-          border-radius: 6px;
+        /* Center status indicator styles */
+        #center-status-text {
+          font-size: 16px;
+          font-weight: bold;
+        }
+        
+        #center-status-subtext {
+          font-size: 10px;
           font-weight: 500;
-          min-width: 60px;
-        }
-        
-        .automation-status.will-activate {
-          color: white;
-          background: #059669;
-          animation: pulse 2s infinite;
-          box-shadow: 0 0 8px rgba(5, 150, 105, 0.4);
-        }
-        
-        .automation-status.will-not-activate {
-          color: white;
-          background: #dc2626;
-        }
-        
-        .automation-status.no-entities {
-          color: white;
-          background: #6b7280;
         }
         
         @keyframes pulse {
@@ -578,10 +646,12 @@ class Timer24HCard extends HTMLElement {
             font-size: 0.7rem;
           }
           
-          .automation-status {
-            font-size: 0.4rem;
-            padding: 1px 2px;
-            min-width: 40px;
+          #center-status-text {
+            font-size: 12px;
+          }
+          
+          #center-status-subtext {
+            font-size: 8px;
           }
         }
         
@@ -590,10 +660,12 @@ class Timer24HCard extends HTMLElement {
             font-size: 1rem;
           }
           
-          .automation-status {
-            font-size: 0.6rem;
-            padding: 1px 4px;
-            min-width: 60px;
+          #center-status-text {
+            font-size: 16px;
+          }
+          
+          #center-status-subtext {
+            font-size: 10px;
           }
           
           .header {
@@ -607,10 +679,12 @@ class Timer24HCard extends HTMLElement {
             font-size: 1.2rem;
           }
           
-          .automation-status {
-            font-size: 0.7rem;
-            padding: 2px 6px;
-            min-width: 70px;
+          #center-status-text {
+            font-size: 18px;
+          }
+          
+          #center-status-subtext {
+            font-size: 12px;
           }
           
           .header {
@@ -624,7 +698,6 @@ class Timer24HCard extends HTMLElement {
       <div class="card">
         <div class="header">
           <div class="title">${this.config.title}</div>
-          <div id="automation-status" class="automation-status"></div>
         </div>
         
 
@@ -680,6 +753,14 @@ class Timer24HCard extends HTMLElement {
               `;
             }).join('')}
             
+            <!-- Center status indicator -->
+            <circle cx="200" cy="200" r="45" fill="var(--card-background-color)" stroke="var(--divider-color)" stroke-width="2"/>
+            <text id="center-status-text" x="200" y="195" text-anchor="middle" font-size="14" font-weight="bold" fill="var(--primary-text-color)">
+              Loading...
+            </text>
+            <text id="center-status-subtext" x="200" y="210" text-anchor="middle" font-size="10" fill="var(--secondary-text-color)">
+              Status
+            </text>
 
           </svg>
         </div>
