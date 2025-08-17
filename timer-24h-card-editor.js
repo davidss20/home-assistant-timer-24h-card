@@ -46,7 +46,9 @@ class Timer24HCardEditor extends HTMLElement {
         'card_ready': '✨ Your card is ready! The timer will automatically control your selected entities based on your schedule and home presence.',
         'loading_entities': 'Loading Home Assistant entities...',
         'no_suitable_sensors': 'No suitable sensors found',
-        'no_controllable_entities': 'No controllable entities found'
+        'no_controllable_entities': 'No controllable entities found',
+        'language_selection': 'Language Selection',
+        'language_help': '🌍 Choose your preferred language or use auto-detection'
       },
       he: {
         'card_configuration': '🕐 הגדרות כרטיס טיימר 24 שעות',
@@ -71,7 +73,9 @@ class Timer24HCardEditor extends HTMLElement {
         'card_ready': '✨ הכרטיס מוכן! הטיימר ישלט אוטומטית בישויות הנבחרות על פי הלוח הזמנים ונוכחותך בבית.',
         'loading_entities': 'טוען ישויות Home Assistant...',
         'no_suitable_sensors': 'לא נמצאו סנסורים מתאימים',
-        'no_controllable_entities': 'לא נמצאו ישויות לשליטה'
+        'no_controllable_entities': 'לא נמצאו ישויות לשליטה',
+        'language_selection': 'בחירת שפה',
+        'language_help': '🌍 בחר את השפה המועדפת עליך או השתמש בזיהוי אוטומטי'
       }
     };
 
@@ -492,6 +496,16 @@ class Timer24HCardEditor extends HTMLElement {
         
         <div class="section-title">Additional Settings</div>
         
+        <div class="config-row">
+          <label for="language-select">🌍 Language / שפה</label>
+          <select id="language-select" ${this.config.language || 'auto'}>
+            <option value="auto">🔄 Auto Detect / זיהוי אוטומטי</option>
+            <option value="en">🇺🇸 English</option>
+            <option value="he">🇮🇱 עברית</option>
+          </select>
+        </div>
+        <div class="help-text">🌍 Choose your preferred language or use auto-detection</div>
+        
         <div class="checkbox-container">
           <input
             type="checkbox"
@@ -544,6 +558,19 @@ class Timer24HCardEditor extends HTMLElement {
     if (homeLogicElement) {
       homeLogicElement.addEventListener('change', (e) => {
         this.config = { ...this.config, home_logic: e.target.value };
+        this.configChanged();
+      });
+    }
+
+    // Language selection
+    const languageElement = this.querySelector('#language-select');
+    if (languageElement) {
+      // Set current value
+      languageElement.value = this.config.language || 'auto';
+      
+      languageElement.addEventListener('change', (e) => {
+        this.config = { ...this.config, language: e.target.value };
+        console.log('🌍 Language changed in editor to:', e.target.value);
         this.configChanged();
       });
     }

@@ -124,6 +124,7 @@ entities:
   - switch.garden_lights
   - fan.bedroom
 save_state: true
+language: auto  # Options: auto, en, he
 ```
 
 ## ⚙️ Configuration Options
@@ -135,6 +136,7 @@ save_state: true
 | `home_logic` | string | ❌ | "OR" | Detection logic: OR or AND |
 | `entities` | list | ❌ | `[]` | Entities for automatic control |
 | `save_state` | boolean | ❌ | `true` | Save settings in browser |
+| `language` | string | ❌ | `auto` | Language: `auto`, `en`, `he` |
 
 ### Supported Sensor Types for Presence Detection:
 - `person.*` - People
@@ -197,6 +199,44 @@ entities:
   - climate.main_ac
 save_state: true
 ```
+
+## 🌍 Hebrew Support / תמיכה בעברית
+
+The card includes full Hebrew language support with automatic detection:
+
+### Automatic Language Detection:
+1. **Home Assistant Language** - Detects from your HA language settings
+2. **Browser Language** - Falls back to browser language
+3. **Manual Override** - Force specific language in configuration
+
+### Force Hebrew Display:
+```yaml
+type: custom:timer-24h-card
+title: "טיימר תאורה"
+language: he  # Force Hebrew
+home_sensors:
+  - person.john_doe
+  - binary_sensor.jewish_calendar_issur_melacha_in_effect
+home_logic: AND
+entities:
+  - light.living_room
+save_state: true
+```
+
+### Hebrew Features:
+- **🔄 RTL Support** - Right-to-left text direction
+- **📝 Translated Interface** - All texts in Hebrew
+- **⚙️ Hebrew Editor** - Configuration interface in Hebrew
+- **🎯 Status Messages** - "ידלק", "חסום ע"י סנסורים", etc.
+
+### Debug Hebrew Display:
+If the card shows English instead of Hebrew:
+1. Open browser console (F12)
+2. Look for "🌍 Language Detection Debug" messages
+3. Check if Hebrew is detected correctly
+4. Force Hebrew with `language: he` in configuration
+
+---
 
 ## 🎯 How It Works
 

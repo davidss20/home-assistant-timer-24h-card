@@ -20,19 +20,48 @@ class Timer24HCard extends HTMLElement {
   }
 
   detectLanguage() {
-    // Try to detect language from Home Assistant or browser
-    if (this._hass && this._hass.language) {
-      return this._hass.language;
+    // Debug logging
+    console.log('🌍 Language Detection Debug:');
+    console.log('- HASS object:', !!this._hass);
+    console.log('- HASS language:', this._hass?.language);
+    console.log('- HASS locale:', this._hass?.locale?.language);
+    console.log('- HASS user language:', this._hass?.user?.language);
+    console.log('- Browser language:', navigator.language);
+    console.log('- Browser languages:', navigator.languages);
+    
+    // Try multiple sources for language detection
+    let detectedLang = 'en';
+    
+    // 1. Try Home Assistant language settings
+    if (this._hass) {
+      // Check various HASS language properties
+      const hassLang = this._hass.language || 
+                      this._hass.locale?.language || 
+                      this._hass.user?.language ||
+                      this._hass.selectedLanguage;
+      
+      if (hassLang) {
+        console.log('📍 Found HASS language:', hassLang);
+        detectedLang = hassLang;
+      }
     }
     
-    // Check browser language
-    const browserLang = navigator.language || navigator.userLanguage;
-    if (browserLang.startsWith('he')) {
-      return 'he';
+    // 2. Check browser language as fallback
+    if (detectedLang === 'en') {
+      const browserLang = navigator.language || navigator.userLanguage;
+      console.log('📍 Using browser language:', browserLang);
+      detectedLang = browserLang;
     }
     
-    // Default to English
-    return 'en';
+    // 3. Normalize language code
+    if (detectedLang.startsWith('he') || detectedLang.includes('hebrew')) {
+      detectedLang = 'he';
+    } else {
+      detectedLang = 'en';
+    }
+    
+    console.log('🎯 Final detected language:', detectedLang);
+    return detectedLang;
   }
 
   translate(key) {
@@ -75,8 +104,16 @@ class Timer24HCard extends HTMLElement {
       save_state: config.save_state !== false,
       // Home presence logic
       home_logic: config.home_logic || 'OR',
+      // Language override (auto, en, he)
+      language: config.language || 'auto',
       ...config
     };
+    
+    // Update language if manually set in config
+    if (config.language && config.language !== 'auto') {
+      this.language = config.language;
+      console.log('🌍 Language set via config:', this.language);
+    }
 
     this.loadSavedState();
     this.render();
@@ -86,7 +123,19 @@ class Timer24HCard extends HTMLElement {
     if (hass && hass.states) {
       try {
         const oldSensorStatus = this.checkSensorStatus();
+        const oldLanguage = this.language;
         this._hass = hass;
+        
+        // Update language when hass changes
+        const newLanguage = this.detectLanguage();
+        if (newLanguage !== oldLanguage) {
+          this.language = newLanguage;
+          console.log('🌍 Language updated to:', this.language);
+          // Re-render to apply new language
+          this.render();
+          return; // Exit early since render() will call updateDisplay
+        }
+        
         this.checkHomeStatus();
         
         // Update display and control when sensor status changes
