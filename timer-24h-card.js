@@ -320,24 +320,91 @@ class Timer24HCard extends HTMLElement {
       
       console.log('💾 Saving state:', state);
       
-      // Always save to localStorage first (for immediate cross-tab sync)
+      // Try Timer 24H Storage integration first
+      if (this._hass && this.config.save_to_ha !== false) {
+        console.log('🏠 Attempting Timer 24H Storage...');
+        this.saveToTimer24HStorage(state);
+      }
+      
+      // Always save to localStorage as fallback
       console.log('💾 Saving to localStorage...');
       localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(state));
       console.log('✅ State saved to localStorage');
-      
-      // Also try to save to Home Assistant if enabled
-      if (this._hass && this.config.save_to_ha !== false) {
-        console.log('🏠 Also attempting to save to Home Assistant...');
-        this.saveToHomeAssistant(state);
-      } else {
-        console.log('⚠️ HA save disabled, using localStorage only');
-      }
       
       // Update our known state to prevent sync loops
       this._lastKnownState = JSON.stringify(state.timeSlots);
     } else {
       console.log('⚠️ Save state is disabled in config');
     }
+  }
+
+  async saveToTimer24HStorage(state) {
+    try {
+      // Convert timeSlots to mask format
+      const mask = this.timeSlotsToMask(state.timeSlots);
+      const timerId = this.config.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      
+      console.log('🔄 Converting to Timer 24H format:', { timerId, mask });
+      
+      // Use Timer 24H Storage WebSocket API
+      const response = await this._hass.callWS({
+        type: 'timer_24h/set',
+        timer_id: timerId,
+        mask: mask,
+        entities: this.config.entities || [],
+        resolution_minutes: 30
+      });
+      
+      if (response.success) {
+        console.log('✅ Timer 24H Storage: State saved successfully');
+        return true;
+      } else {
+        console.warn('⚠️ Timer 24H Storage: Save failed:', response);
+        return false;
+      }
+    } catch (error) {
+      console.warn('⚠️ Timer 24H Storage not available, using fallback:', error);
+      // Fall back to old method
+      this.saveToHomeAssistant(state);
+      return false;
+    }
+  }
+
+  timeSlotsToMask(timeSlots) {
+    // Convert our timeSlots format to binary mask
+    const mask = new Array(48).fill('0'); // 48 slots for 30-minute resolution
+    
+    timeSlots.forEach(slot => {
+      if (slot.isActive) {
+        // Convert hour:minute to slot index
+        const slotIndex = Math.floor((slot.hour * 60 + slot.minute) / 30);
+        if (slotIndex >= 0 && slotIndex < 48) {
+          mask[slotIndex] = '1';
+        }
+      }
+    });
+    
+    return mask.join('');
+  }
+
+  maskToTimeSlots(mask) {
+    // Convert binary mask to our timeSlots format
+    const timeSlots = [];
+    
+    // Initialize all time slots
+    for (let hour = 0; hour < 24; hour++) {
+      timeSlots.push({ hour, minute: 0, isActive: false });
+      timeSlots.push({ hour, minute: 30, isActive: false });
+    }
+    
+    // Set active slots based on mask
+    for (let i = 0; i < Math.min(mask.length, timeSlots.length); i++) {
+      if (mask[i] === '1') {
+        timeSlots[i].isActive = true;
+      }
+    }
+    
+    return timeSlots;
   }
 
   async saveToHomeAssistant(state) {
@@ -584,14 +651,45 @@ class Timer24HCard extends HTMLElement {
 
   loadSavedState() {
     if (this.config.save_state) {
-      // Try to load from Home Assistant first
+      // Try Timer 24H Storage integration first
       if (this._hass && this.config.save_to_ha !== false) {
-        this.loadFromHomeAssistant();
+        this.loadFromTimer24HStorage();
       } else {
         // Fallback to localStorage
         this.loadFromLocalStorage();
       }
     }
+  }
+
+  async loadFromTimer24HStorage() {
+    try {
+      const timerId = this.config.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      console.log('🔄 Loading from Timer 24H Storage:', timerId);
+      
+      const response = await this._hass.callWS({
+        type: 'timer_24h/get',
+        timer_id: timerId
+      });
+      
+      if (response.success && response.schedule) {
+        console.log('✅ Timer 24H Storage: Data loaded successfully');
+        
+        // Convert mask to our timeSlots format
+        this.timeSlots = this.maskToTimeSlots(response.schedule.mask);
+        this._lastKnownState = JSON.stringify(this.timeSlots);
+        
+        this.updateDisplay();
+        this.controlEntities();
+        return;
+      } else {
+        console.warn('⚠️ Timer 24H Storage: No data found, using fallback');
+      }
+    } catch (error) {
+      console.warn('⚠️ Timer 24H Storage not available, using fallback:', error);
+    }
+    
+    // Fall back to old method
+    this.loadFromHomeAssistant();
   }
 
   loadFromHomeAssistant() {
