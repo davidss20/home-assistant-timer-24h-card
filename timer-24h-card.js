@@ -344,18 +344,18 @@ class Timer24HCard extends HTMLElement {
           background: var(--card-background-color, white);
           border-radius: var(--ha-card-border-radius, 12px);
           box-shadow: var(--ha-card-box-shadow, 0 2px 8px rgba(0,0,0,0.1));
-          padding: 16px;
+          padding: 8px;
         }
         
         .header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 16px;
+          margin-bottom: 8px;
         }
         
         .title {
-          font-size: 1.5rem;
+          font-size: 1.2rem;
           font-weight: bold;
           color: var(--primary-text-color);
         }
@@ -363,9 +363,9 @@ class Timer24HCard extends HTMLElement {
 
         
         .home-status {
-          font-size: 0.9rem;
+          font-size: 0.8rem;
           text-align: center;
-          margin: 4px 0;
+          margin: 0;
         }
         
         .home-status.home {
@@ -379,12 +379,14 @@ class Timer24HCard extends HTMLElement {
         .timer-container {
           display: flex;
           justify-content: center;
-          margin: 20px 0;
+          margin: 0;
         }
         
         .timer-svg {
-          width: 400px;
-          height: 400px;
+          width: 100%;
+          height: auto;
+          max-width: 500px;
+          aspect-ratio: 1;
         }
         
         .sector {
