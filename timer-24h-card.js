@@ -358,19 +358,25 @@ class Timer24HCard extends HTMLElement {
           border-radius: var(--ha-card-border-radius, 12px);
           box-shadow: var(--ha-card-box-shadow, 0 2px 8px rgba(0,0,0,0.1));
           padding: 0;
+          margin: 0;
           overflow: hidden;
+          container-type: inline-size;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
         }
         
         .header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 8px;
-          padding: 8px 12px 0 12px;
+          margin-bottom: 2px;
+          padding: 2px 4px 0 4px;
+          flex-shrink: 0;
         }
         
         .title {
-          font-size: 1.2rem;
+          font-size: 1rem;
           font-weight: bold;
           color: var(--primary-text-color);
         }
@@ -378,7 +384,7 @@ class Timer24HCard extends HTMLElement {
 
         
         .home-status {
-          font-size: 0.8rem;
+          font-size: 0.7rem;
           text-align: center;
           margin: 0;
         }
@@ -394,14 +400,22 @@ class Timer24HCard extends HTMLElement {
         .timer-container {
           display: flex;
           justify-content: center;
+          align-items: center;
           margin: 0;
+          padding: 0;
+          flex: 1;
+          min-height: 0;
+          width: 100%;
         }
         
         .timer-svg {
           width: 100%;
-          height: auto;
+          height: 100%;
+          max-width: 100%;
+          max-height: 100%;
           aspect-ratio: 1;
           display: block;
+          object-fit: contain;
         }
         
         .sector {
@@ -419,8 +433,51 @@ class Timer24HCard extends HTMLElement {
           font-weight: bold;
         }
         
-
+        /* Responsive adjustments for minimal spacing */
+        @container (max-width: 300px) {
+          .header {
+            padding: 0px 1px 0 1px;
+            margin-bottom: 0px;
+          }
+          
+          .title {
+            font-size: 0.7rem;
+          }
+          
+          .home-status {
+            font-size: 0.5rem;
+          }
+        }
         
+        @container (min-width: 400px) {
+          .title {
+            font-size: 1rem;
+          }
+          
+          .home-status {
+            font-size: 0.7rem;
+          }
+          
+          .header {
+            padding: 3px 5px 0 5px;
+            margin-bottom: 3px;
+          }
+        }
+        
+        @container (min-width: 600px) {
+          .title {
+            font-size: 1.2rem;
+          }
+          
+          .home-status {
+            font-size: 0.8rem;
+          }
+          
+          .header {
+            padding: 4px 6px 0 6px;
+            margin-bottom: 4px;
+          }
+        }
 
       </style>
       

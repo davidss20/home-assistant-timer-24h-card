@@ -1,8 +1,23 @@
 # Timer 24H Card - 24 Hour Timer Card
 
+<div align="center">
+
+[![HACS Badge](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://github.com/hacs/integration)
+[![GitHub Release](https://img.shields.io/github/release/davidss20/timer-24h-card.svg?style=for-the-badge&color=blue)](https://github.com/davidss20/timer-24h-card/releases)
+[![License](https://img.shields.io/github/license/davidss20/timer-24h-card.svg?style=for-the-badge&color=green)](LICENSE)
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg?style=for-the-badge)](https://github.com/davidss20/timer-24h-card/graphs/commit-activity)
+
+</div>
+
 A custom card for Home Assistant that allows you to set a daily schedule with automatic entity control.
 
-![Timer 24H Card](https://via.placeholder.com/600x400/10b981/ffffff?text=Timer+24H+Card)
+<div align="center">
+
+![Timer 24H Card Preview](https://raw.githubusercontent.com/davidss20/timer-24h-card/main/images/preview.png)
+
+*24-hour circular timer with automatic entity control and home presence detection*
+
+</div>
 
 ## ✨ Features
 
@@ -42,6 +57,33 @@ lovelace:
 ```
 
 4. **Restart Home Assistant**
+
+## 📸 Screenshots
+
+<div align="center">
+<table>
+<tr>
+<td align="center">
+<img src="https://raw.githubusercontent.com/davidss20/timer-24h-card/main/images/card-active.png" width="300">
+<br><em>Active Timer Segments</em>
+</td>
+<td align="center">
+<img src="https://raw.githubusercontent.com/davidss20/timer-24h-card/main/images/card-editor.png" width="300">
+<br><em>Visual Configuration Editor</em>
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="https://raw.githubusercontent.com/davidss20/timer-24h-card/main/images/card-grid.png" width="300">
+<br><em>Sections Grid Layout</em>
+</td>
+<td align="center">
+<img src="https://raw.githubusercontent.com/davidss20/timer-24h-card/main/images/card-mobile.png" width="200">
+<br><em>Mobile Responsive</em>
+</td>
+</tr>
+</table>
+</div>
 
 ## 🚀 Usage
 
@@ -181,11 +223,19 @@ save_state: true
 2. Check that browser allows Local Storage
 3. Try refreshing the page
 
+## 🎮 Try It Live
+
+Want to see the card in action before installing? Try our interactive preview:
+
+**[🔗 Live Interactive Preview](https://davidss20.github.io/timer-24h-card/preview.html)**
+
+*Click on segments, try different presets, and see how the card responds!*
+
 ## 🆘 Support
 
-- **🐛 Bug Reports**: [GitHub Issues](https://github.com/YOUR-USERNAME/timer-24h-card/issues)
-- **💡 Feature Requests**: [GitHub Discussions](https://github.com/YOUR-USERNAME/timer-24h-card/discussions)
-- **📖 Additional Documentation**: [Wiki](https://github.com/YOUR-USERNAME/timer-24h-card/wiki)
+- **🐛 Bug Reports**: [GitHub Issues](https://github.com/davidss20/timer-24h-card/issues)
+- **💡 Feature Requests**: [GitHub Discussions](https://github.com/davidss20/timer-24h-card/discussions)
+- **📖 Additional Documentation**: [Wiki](https://github.com/davidss20/timer-24h-card/wiki)
 
 ## 📄 License
 

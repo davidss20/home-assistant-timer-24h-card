@@ -3,21 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Timer 24H Card - Preview</title>
+    <title>Timer 24H Card - Live Preview</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
+        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f0f0f0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             padding: 20px;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 300;
+            margin: 0 0 10px 0;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
             margin: 0;
         }
         .preview-container {
-            max-width: 400px;
+            width: 420px;
+            height: 420px;
             margin: 0 auto;
             background: white;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15), 0 8px 16px rgba(0,0,0,0.1);
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .preview-container:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 25px 50px rgba(0,0,0,0.2), 0 12px 24px rgba(0,0,0,0.15);
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .control-btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 2px solid rgba(255,255,255,0.3);
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .control-btn:hover {
+            background: rgba(255,255,255,0.3);
+            border-color: rgba(255,255,255,0.5);
+            transform: translateY(-2px);
+        }
+        
+        .info-panel {
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            max-width: 420px;
+        }
+        
+        .info-panel h3 {
+            color: white;
+            margin: 0 0 15px 0;
+            font-size: 1.2rem;
+        }
+        
+        .info-panel ul {
+            color: rgba(255,255,255,0.9);
+            margin: 0;
+            padding-right: 20px;
+        }
+        
+        .info-panel li {
+            margin-bottom: 8px;
+            line-height: 1.4;
         }
         /* Mock Home Assistant variables */
         :root {
@@ -31,9 +122,31 @@
     </style>
 </head>
 <body>
+    <div class="header">
+        <h1>🕐 Timer 24H Card</h1>
+        <p>Live Interactive Preview - Click on segments to activate them</p>
+    </div>
+    
     <div class="preview-container">
-        <!-- הכרטיס יטען כאן -->
         <timer-24h-card id="preview-card"></timer-24h-card>
+    </div>
+    
+    <div class="controls">
+        <button class="control-btn" onclick="toggleHomeStatus()">🏠 Toggle Home Status</button>
+        <button class="control-btn" onclick="randomizeTimer()">🎲 Random Timer</button>
+        <button class="control-btn" onclick="clearTimer()">🗑️ Clear All</button>
+        <button class="control-btn" onclick="presetWorkday()">💼 Workday Preset</button>
+    </div>
+    
+    <div class="info-panel">
+        <h3>✨ Features</h3>
+        <ul>
+            <li><strong>24-hour circular timer</strong> with half-hour segments</li>
+            <li><strong>Home presence detection</strong> with Jewish calendar support</li>
+            <li><strong>Automatic entity control</strong> based on schedule</li>
+            <li><strong>Responsive design</strong> for all screen sizes</li>
+            <li><strong>Visual configuration</strong> with live preview</li>
+        </ul>
     </div>
 
     <!-- טעינת הקוד שלך -->
@@ -78,6 +191,82 @@
         card.hass = mockHass;
         
         console.log('Timer Card Preview loaded successfully!');
+        
+        // Interactive functions for the preview
+        window.toggleHomeStatus = function() {
+            const currentState = mockHass.states['binary_sensor.jewish_calendar_issur_melacha_in_effect'].state;
+            mockHass.states['binary_sensor.jewish_calendar_issur_melacha_in_effect'].state = 
+                currentState === 'off' ? 'on' : 'off';
+            card.hass = {...mockHass}; // Trigger update
+        };
+        
+        window.randomizeTimer = function() {
+            const randomSlots = Math.floor(Math.random() * 12) + 4; // 4-15 random slots
+            card.timeSlots = card.timeSlots.map(slot => ({
+                ...slot,
+                isActive: Math.random() < 0.3 // 30% chance for each slot
+            }));
+            card.requestUpdate();
+        };
+        
+        window.clearTimer = function() {
+            card.timeSlots = card.timeSlots.map(slot => ({
+                ...slot,
+                isActive: false
+            }));
+            card.requestUpdate();
+        };
+        
+        window.presetWorkday = function() {
+            card.timeSlots = card.timeSlots.map(slot => {
+                // Morning: 6:00-9:00, Evening: 17:00-23:00
+                const isWorkdayActive = 
+                    (slot.hour >= 6 && slot.hour < 9) || 
+                    (slot.hour >= 17 && slot.hour < 23);
+                return {
+                    ...slot,
+                    isActive: isWorkdayActive
+                };
+            });
+            card.requestUpdate();
+        };
+        
+        // Add some visual feedback
+        card.addEventListener('click', function(e) {
+            if (e.target.classList.contains('sector')) {
+                // Add ripple effect
+                const ripple = document.createElement('div');
+                ripple.style.cssText = `
+                    position: absolute;
+                    border-radius: 50%;
+                    background: rgba(16, 185, 129, 0.3);
+                    transform: scale(0);
+                    animation: ripple 0.6s linear;
+                    pointer-events: none;
+                `;
+                
+                const rect = e.target.getBoundingClientRect();
+                const size = Math.max(rect.width, rect.height);
+                ripple.style.width = ripple.style.height = size + 'px';
+                ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+                ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
+                
+                e.target.appendChild(ripple);
+                setTimeout(() => ripple.remove(), 600);
+            }
+        });
+        
+        // Add CSS for ripple animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes ripple {
+                to {
+                    transform: scale(4);
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
     </script>
 </body>
 </html>

@@ -504,18 +504,18 @@ export class Timer24HCard extends LitElement implements LovelaceCard {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 8px;
-        padding: 8px 12px 0 12px;
+        margin-bottom: 4px;
+        padding: 4px 8px 0 8px;
       }
       
       .title {
-        font-size: 1.2rem;
+        font-size: 1rem;
         font-weight: bold;
         color: var(--primary-text-color);
       }
       
       .home-status {
-        font-size: 0.8rem;
+        font-size: 0.7rem;
         text-align: center;
         margin: 0;
       }
@@ -532,6 +532,7 @@ export class Timer24HCard extends LitElement implements LovelaceCard {
         display: flex;
         justify-content: center;
         margin: 0;
+        padding: 0;
         flex: 1;
         min-height: 0;
       }
@@ -542,6 +543,7 @@ export class Timer24HCard extends LitElement implements LovelaceCard {
         max-width: 100%;
         max-height: 100%;
         display: block;
+        object-fit: contain;
       }
       
       .sector {
@@ -560,27 +562,50 @@ export class Timer24HCard extends LitElement implements LovelaceCard {
       }
       
       /* Responsive adjustments */
-      @container (max-width: 300px) {
+      @container (max-width: 250px) {
+        .header {
+          padding: 1px 2px 0 2px;
+          margin-bottom: 1px;
+        }
+        
         .title {
-          font-size: 1rem;
+          font-size: 0.8rem;
         }
         
         .home-status {
-          font-size: 0.7rem;
+          font-size: 0.6rem;
         }
         
         .sector-text {
-          font-size: 8px !important;
+          font-size: 6px !important;
         }
       }
       
-      @container (min-width: 500px) {
+      @container (min-width: 400px) {
         .title {
-          font-size: 1.4rem;
+          font-size: 1.1rem;
+        }
+        
+        .home-status {
+          font-size: 0.8rem;
+        }
+        
+        .header {
+          padding: 6px 10px 0 10px;
+        }
+      }
+      
+      @container (min-width: 600px) {
+        .title {
+          font-size: 1.3rem;
         }
         
         .home-status {
           font-size: 0.9rem;
+        }
+        
+        .header {
+          padding: 8px 12px 0 12px;
         }
       }
     `;
