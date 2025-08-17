@@ -139,7 +139,12 @@ export class Timer24HCard extends LitElement implements LovelaceCard {
       save_state: true,
       ...config
     };
-    this.loadSavedState();
+    // Load saved state with error handling
+    if (typeof this.loadSavedState === 'function') {
+      this.loadSavedState();
+    } else {
+      console.error('Timer Card: loadSavedState method is not defined');
+    }
   }
 
   private validateConfig(config: Timer24HCardConfig): void {
@@ -353,15 +358,19 @@ export class Timer24HCard extends LitElement implements LovelaceCard {
   }
 
   private loadSavedState(): void {
-    if (this.config.save_state) {
-      const saved = localStorage.getItem(`timer-24h-${this.config.title}`);
-      if (saved) {
-        try {
-          this.timeSlots = JSON.parse(saved);
-        } catch (error) {
-          console.error('Timer Card: Failed to load saved state:', error);
+    try {
+      if (this.config && this.config.save_state) {
+        const saved = localStorage.getItem(`timer-24h-${this.config.title}`);
+        if (saved) {
+          try {
+            this.timeSlots = JSON.parse(saved);
+          } catch (error) {
+            console.error('Timer Card: Failed to load saved state:', error);
+          }
         }
       }
+    } catch (error) {
+      console.error('Timer Card: Error in loadSavedState:', error);
     }
   }
 

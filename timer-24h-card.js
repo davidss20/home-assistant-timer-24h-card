@@ -117,7 +117,12 @@ class Timer24HCard extends HTMLElement {
       console.log('🌍 Language set via config:', this.language);
     }
 
-    this.loadSavedState();
+    // Load saved state with error handling
+    if (typeof this.loadSavedState === 'function') {
+      this.loadSavedState();
+    } else {
+      console.error('Timer Card: loadSavedState method is not defined');
+    }
     this.setupRealtimeSync();
     this.render();
   }
@@ -338,14 +343,18 @@ class Timer24HCard extends HTMLElement {
   }
 
   loadSavedState() {
-    if (this.config.save_state) {
-      // Try to load from Home Assistant notification first
-      if (this._hass && this.config.save_to_ha !== false) {
-        this.loadFromHAStorage();
-      } else {
-        // Fallback to localStorage
-        this.loadFromLocalStorage();
+    try {
+      if (this.config && this.config.save_state) {
+        // Try to load from Home Assistant notification first
+        if (this._hass && this.config.save_to_ha !== false) {
+          this.loadFromHAStorage();
+        } else {
+          // Fallback to localStorage
+          this.loadFromLocalStorage();
+        }
       }
+    } catch (error) {
+      console.error('Timer Card: Error in loadSavedState:', error);
     }
   }
 
