@@ -45,11 +45,13 @@ class Timer24HCard extends HTMLElement {
     this._hass = hass;
     if (hass) {
       try {
-        const oldHomeStatus = this.isAtHome;
+        const oldSensorStatus = this.checkSensorStatus();
         this.checkHomeStatus();
         
-        // Only run control if home status changed
-        if (oldHomeStatus !== this.isAtHome) {
+        // Update display and control when sensor status changes
+        const newSensorStatus = this.checkSensorStatus();
+        if (oldSensorStatus !== newSensorStatus) {
+          this.updateDisplay();
           this.controlEntities();
         }
         
@@ -284,11 +286,44 @@ class Timer24HCard extends HTMLElement {
       slot.hour === currentHour && slot.minute === halfHour
     );
 
-    // Simple check: is current time slot active?
-    if (currentSlot && currentSlot.isActive) {
+    // Check if current time slot is active
+    if (!currentSlot || !currentSlot.isActive) {
+      return 'will-not-activate';
+    }
+
+    // Check if sensors allow activation (same logic as isAtHome)
+    const sensorsAllow = this.checkSensorStatus();
+    
+    if (sensorsAllow) {
       return 'will-activate';
     } else {
       return 'will-not-activate';
+    }
+  }
+
+  checkSensorStatus() {
+    if (!this.config.home_sensors || this.config.home_sensors.length === 0) {
+      return true; // No sensors configured, assume allowed
+    }
+
+    const sensorStates = this.config.home_sensors.map(sensorId => {
+      const entity = this._hass.states[sensorId];
+      if (!entity) return false;
+
+      // Special handling for Jewish calendar sensor
+      if (sensorId === 'binary_sensor.jewish_calendar_issur_melacha_in_effect') {
+        return entity.state === 'off'; // Off means no issur melacha (allowed)
+      }
+
+      // For other sensors, check if they indicate "home" or "on"
+      return entity.state === 'on' || entity.state === 'home';
+    });
+
+    // Apply home logic
+    if (this.config.home_logic === 'AND') {
+      return sensorStates.every(state => state === true);
+    } else {
+      return sensorStates.some(state => state === true);
     }
   }
 
@@ -297,11 +332,23 @@ class Timer24HCard extends HTMLElement {
     
     switch (status) {
       case 'will-activate':
-        return '🟢 ON';
+        return '🟢 WILL TURN ON';
       case 'will-not-activate':
-        return '🔴 OFF';
+        // More detailed reason
+        const currentHour = this.currentTime.getHours();
+        const currentMinute = this.currentTime.getMinutes();
+        const halfHour = currentMinute >= 30 ? 30 : 0;
+        const currentSlot = this.timeSlots.find(slot => 
+          slot.hour === currentHour && slot.minute === halfHour
+        );
+        
+        if (!currentSlot || !currentSlot.isActive) {
+          return '🔴 TIME INACTIVE';
+        } else {
+          return '🔴 SENSORS BLOCK';
+        }
       case 'no-entities':
-        return '⚙️ NO SETUP';
+        return '⚙️ NO ENTITIES';
       default:
         return '❓ ERROR';
     }
