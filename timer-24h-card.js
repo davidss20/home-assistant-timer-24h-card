@@ -65,7 +65,15 @@ class Timer24HCard extends HTMLElement {
       const sensor = this._hass.states[sensorId];
       if (!sensor) continue;
       
-      const isTrue = ['on', 'home', 'true', '1', 'yes'].includes(sensor.state.toLowerCase());
+      let isTrue;
+      
+      // Special handling for jewish calendar sensor - it should be OFF (no issur melacha)
+      if (sensorId === 'binary_sensor.jewish_calendar_issur_melacha_in_effect') {
+        isTrue = sensor.state.toLowerCase() === 'off';
+      } else {
+        // Regular sensors - ON means at home/present
+        isTrue = ['on', 'home', 'true', '1', 'yes'].includes(sensor.state.toLowerCase());
+      }
       
       if (logic === 'OR') {
         if (isTrue) {
@@ -81,6 +89,13 @@ class Timer24HCard extends HTMLElement {
     }
     
     this.isAtHome = homeStatus;
+    
+    // Debug logging
+    console.log(`Timer Card Debug - Home Status: ${homeStatus}, Sensors:`, 
+      this.config.home_sensors.map(id => {
+        const sensor = this._hass.states[id];
+        return `${id}: ${sensor?.state || 'unavailable'}`;
+      }).join(', '));
   }
 
   updateCurrentTime() {
@@ -90,6 +105,7 @@ class Timer24HCard extends HTMLElement {
 
   controlEntities() {
     if (!this._hass || !this.config.entities.length || !this.isAtHome) {
+      console.log(`Timer Card Debug - Not controlling entities. HASS: ${!!this._hass}, Entities: ${this.config.entities.length}, At Home: ${this.isAtHome}`);
       return;
     }
 
@@ -102,6 +118,8 @@ class Timer24HCard extends HTMLElement {
     );
     
     const shouldBeOn = currentSlot?.isActive || false;
+    
+    console.log(`Timer Card Debug - Control: Hour ${currentHour}:${minute < 10 ? '0' + minute : minute}, Slot Active: ${shouldBeOn}, At Home: ${this.isAtHome}`);
     
     // Control entities
     for (const entityId of this.config.entities) {
@@ -230,12 +248,7 @@ class Timer24HCard extends HTMLElement {
       homeStatus.className = this.isAtHome ? 'home-status home' : 'home-status away';
     }
 
-    // Update triangle
-    const triangle = shadowRoot.querySelector('#triangle');
-    if (triangle) {
-      triangle.style.transform = `translate(-50%, -50%) rotate(${this.getCurrentAngle()}deg)`;
-      triangle.setAttribute('class', this.isCurrentTimeSlotActive() ? 'triangle active' : 'triangle inactive');
-    }
+
 
     // Update summary
     this.updateSummary();
@@ -391,23 +404,7 @@ class Timer24HCard extends HTMLElement {
           font-weight: bold;
         }
         
-        .triangle {
-          cursor: pointer;
-          transition: all 0.2s;
-          transform-origin: center;
-        }
-        
-        .triangle:hover {
-          transform: translate(-50%, -50%) scale(1.1) rotate(var(--rotation));
-        }
-        
-        .triangle.active {
-          color: #10b981;
-        }
-        
-        .triangle.inactive {
-          color: #ef4444;
-        }
+
         
         .summary {
           margin-top: 20px;
@@ -496,14 +493,7 @@ class Timer24HCard extends HTMLElement {
               `;
             }).join('')}
             
-            <!-- Pointing triangle -->
-            <g id="triangle" class="triangle" onclick="this.getRootNode().host.toggleCurrentTimeSlot()"
-               style="transform-origin: ${centerX}px ${centerY}px;">
-              <polygon points="${centerX},${centerY-40} ${centerX+10},${centerY-20} ${centerX-10},${centerY-20}"
-                       fill="currentColor" stroke="white" stroke-width="2"/>
-              <circle cx="${centerX}" cy="${centerY}" r="8" 
-                      fill="currentColor" stroke="white" stroke-width="2"/>
-            </g>
+
           </svg>
         </div>
         
@@ -516,7 +506,7 @@ class Timer24HCard extends HTMLElement {
         
         <div class="instructions">
           <p><strong>Outer circle:</strong> Full hours | <strong>Inner circle:</strong> Half hours</p>
-          <p>Click directly on segments or the pointing triangle</p>
+          <p>Click directly on segments to activate/deactivate</p>
           <p>Entities will only be activated when you are at home</p>
         </div>
       </div>
@@ -551,6 +541,19 @@ class Timer24HCard extends HTMLElement {
       entities: [],
       save_state: true,
       home_logic: "OR"
+    };
+  }
+  static getConfigElement() {
+    return document.createElement('timer-24h-card-editor');
+  }
+
+  static getStubConfig() {
+    return {
+      title: '24 Hour Timer',
+      home_sensors: [],
+      home_logic: 'OR',
+      entities: [],
+      save_state: true
     };
   }
 }

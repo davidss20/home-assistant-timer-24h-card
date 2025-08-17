@@ -274,6 +274,16 @@ class Timer24HCardEditor extends HTMLElement {
       });
     });
   }
+
+  configChanged(config) {
+    // Dispatch event to Home Assistant
+    const event = new CustomEvent('config-changed', {
+      detail: { config: config },
+      bubbles: true,
+      composed: true
+    });
+    this.dispatchEvent(event);
+  }
 }
 
 customElements.define('timer-24h-card-editor', Timer24HCardEditor); 
