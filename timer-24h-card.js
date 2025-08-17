@@ -6,6 +6,7 @@ class Timer24HCard extends HTMLElement {
     this.currentTime = new Date();
     this.isAtHome = false;
     this.lastControlledStates = new Map(); // Track last sent commands
+    this.lastHomeStatus = undefined; // Track home status changes
   }
 
   initializeTimeSlots() {
@@ -44,9 +45,15 @@ class Timer24HCard extends HTMLElement {
     this._hass = hass;
     if (hass) {
       try {
+        const oldHomeStatus = this.isAtHome;
         this.checkHomeStatus();
+        
+        // Only run control if home status changed
+        if (oldHomeStatus !== this.isAtHome) {
+          this.controlEntities();
+        }
+        
         this.updateCurrentTime();
-        this.controlEntities();
       } catch (error) {
         console.error('Timer Card: Error in hass setter:', error);
       }
@@ -97,22 +104,32 @@ class Timer24HCard extends HTMLElement {
     
     this.isAtHome = homeStatus;
     
-    // Debug logging
-    console.log(`Timer Card Debug - Home Status: ${homeStatus}, Sensors:`, 
-      this.config.home_sensors.map(id => {
-        const sensor = this._hass.states[id];
-        return `${id}: ${sensor?.state || 'unavailable'}`;
-      }).join(', '));
+    // Debug logging (only when status changes)
+    if (this.lastHomeStatus !== homeStatus) {
+      console.log(`Timer Card - Home Status changed to: ${homeStatus ? 'At Home' : 'Away'}`);
+      this.lastHomeStatus = homeStatus;
+    }
   }
 
   updateCurrentTime() {
-    this.currentTime = new Date();
-    this.updateDisplay();
+    const newTime = new Date();
+    const oldHour = this.currentTime.getHours();
+    const oldMinute = Math.floor(this.currentTime.getMinutes() / 30) * 30;
+    const newHour = newTime.getHours();
+    const newMinute = Math.floor(newTime.getMinutes() / 30) * 30;
+    
+    this.currentTime = newTime;
+    
+    // Only update display and control entities if time segment changed
+    if (oldHour !== newHour || oldMinute !== newMinute) {
+      console.log(`Timer Card: Time segment changed to ${newHour}:${newMinute === 0 ? '00' : '30'}`);
+      this.updateDisplay();
+      this.controlEntities();
+    }
   }
 
   controlEntities() {
     if (!this._hass || !this.config.entities.length || !this.isAtHome) {
-      console.log(`Timer Card Debug - Not controlling entities. HASS: ${!!this._hass}, Entities: ${this.config.entities.length}, At Home: ${this.isAtHome}`);
       return;
     }
 
@@ -126,8 +143,6 @@ class Timer24HCard extends HTMLElement {
     
     const shouldBeOn = currentSlot?.isActive || false;
     
-    console.log(`Timer Card Debug - Control: Hour ${currentHour}:${minute < 10 ? '0' + minute : minute}, Slot Active: ${shouldBeOn}, At Home: ${this.isAtHome}`);
-    
     // Control entities
     for (const entityId of this.config.entities) {
       const entity = this._hass.states[entityId];
@@ -140,7 +155,6 @@ class Timer24HCard extends HTMLElement {
       // 1. Current state is different from desired state
       // 2. We haven't already sent this command (to prevent infinite loops)
       if (currentState !== shouldBeOn && lastControlledState !== shouldBeOn) {
-        console.log(`Timer Card Debug - Sending command to ${entityId}: ${shouldBeOn ? 'ON' : 'OFF'} (current: ${currentState}, last sent: ${lastControlledState})`);
         try {
           this._hass.callService('homeassistant', shouldBeOn ? 'turn_on' : 'turn_off', {
             entity_id: entityId
@@ -160,8 +174,6 @@ class Timer24HCard extends HTMLElement {
         } catch (error) {
           console.error(`Timer Card: Failed to control ${entityId}:`, error);
         }
-      } else {
-        console.log(`Timer Card Debug - Skipping ${entityId}: current=${currentState}, desired=${shouldBeOn}, lastSent=${lastControlledState}`);
       }
     }
   }
@@ -428,12 +440,14 @@ class Timer24HCard extends HTMLElement {
             <circle cx="${centerX}" cy="${centerY}" r="${innerRadius}" 
                     fill="none" stroke="#e5e7eb" stroke-width="2"/>
             
-            <!-- Dividing lines -->
+            <!-- Dividing lines (only in outer ring) -->
             ${Array.from({ length: 24 }, (_, i) => {
               const angle = (i * 360 / 24 - 90) * (Math.PI / 180);
-              const x = centerX + outerRadius * Math.cos(angle);
-              const y = centerY + outerRadius * Math.sin(angle);
-              return `<line x1="${centerX}" y1="${centerY}" x2="${x}" y2="${y}" 
+              const xInner = centerX + innerRadius * Math.cos(angle);
+              const yInner = centerY + innerRadius * Math.sin(angle);
+              const xOuter = centerX + outerRadius * Math.cos(angle);
+              const yOuter = centerY + outerRadius * Math.sin(angle);
+              return `<line x1="${xInner}" y1="${yInner}" x2="${xOuter}" y2="${yOuter}" 
                            stroke="#d1d5db" stroke-width="1"/>`;
             }).join('')}
             
@@ -484,7 +498,7 @@ class Timer24HCard extends HTMLElement {
     
     this.updateInterval = setInterval(() => {
       this.updateCurrentTime();
-    }, 60000);
+    }, 120000); // Check every 2 minutes instead of 1
 
     this.updateDisplay();
   }
