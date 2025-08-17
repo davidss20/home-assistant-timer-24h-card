@@ -467,14 +467,11 @@ class Timer24HCard extends HTMLElement {
         statusCircle.setAttribute('stroke', statusInfo.borderColor);
         statusCircle.setAttribute('stroke-width', statusInfo.borderWidth);
         
-        // Add pulsing animation for active status
-        if (status === 'will-activate') {
-          statusCircle.style.filter = 'drop-shadow(0 0 8px rgba(5, 150, 105, 0.6))';
-          statusCircle.style.animation = 'pulse 2s infinite';
-        } else {
-          statusCircle.style.filter = 'none';
-          statusCircle.style.animation = 'none';
-        }
+        // Static display - no animations
+        statusCircle.style.filter = 'none';
+        statusCircle.style.animation = 'none';
+        statusText.style.animation = 'none';
+        statusSubtext.style.animation = 'none';
       } catch (error) {
         console.error('Timer Card: Error updating center display:', error);
         statusText.textContent = '❓';
@@ -562,10 +559,10 @@ class Timer24HCard extends HTMLElement {
         
         .header {
           display: flex;
-          justify-content: space-between;
+          justify-content: center;
           align-items: center;
-          margin-bottom: 2px;
-          padding: 2px 4px 0 4px;
+          margin-bottom: 0px;
+          padding: 1px 2px 0 2px;
           flex-shrink: 0;
         }
         
@@ -588,16 +585,7 @@ class Timer24HCard extends HTMLElement {
           font-weight: 500;
         }
         
-        @keyframes pulse {
-          0%, 100% { 
-            opacity: 1; 
-            transform: scale(1);
-          }
-          50% { 
-            opacity: 0.8; 
-            transform: scale(1.02);
-          }
-        }
+
         
         .timer-container {
           display: flex;
@@ -608,6 +596,7 @@ class Timer24HCard extends HTMLElement {
           flex: 1;
           min-height: 0;
           width: 100%;
+          overflow: hidden;
         }
         
         .timer-svg {
@@ -638,26 +627,45 @@ class Timer24HCard extends HTMLElement {
         /* Responsive adjustments for minimal spacing */
         @container (max-width: 300px) {
           .header {
-            padding: 0px 1px 0 1px;
+            padding: 0px 0px 0 0px;
             margin-bottom: 0px;
           }
           
           .title {
-            font-size: 0.7rem;
+            font-size: 0.6rem;
           }
           
           #center-status-text {
-            font-size: 12px;
+            font-size: 10px;
           }
           
           #center-status-subtext {
-            font-size: 8px;
+            font-size: 7px;
           }
         }
         
         @container (min-width: 400px) {
           .title {
-            font-size: 1rem;
+            font-size: 0.9rem;
+          }
+          
+          #center-status-text {
+            font-size: 14px;
+          }
+          
+          #center-status-subtext {
+            font-size: 9px;
+          }
+          
+          .header {
+            padding: 1px 2px 0 2px;
+            margin-bottom: 0px;
+          }
+        }
+        
+        @container (min-width: 600px) {
+          .title {
+            font-size: 1.0rem;
           }
           
           #center-status-text {
@@ -669,27 +677,8 @@ class Timer24HCard extends HTMLElement {
           }
           
           .header {
-            padding: 3px 5px 0 5px;
-            margin-bottom: 3px;
-          }
-        }
-        
-        @container (min-width: 600px) {
-          .title {
-            font-size: 1.2rem;
-          }
-          
-          #center-status-text {
-            font-size: 18px;
-          }
-          
-          #center-status-subtext {
-            font-size: 12px;
-          }
-          
-          .header {
-            padding: 4px 6px 0 6px;
-            margin-bottom: 4px;
+            padding: 1px 3px 0 3px;
+            margin-bottom: 0px;
           }
         }
 
