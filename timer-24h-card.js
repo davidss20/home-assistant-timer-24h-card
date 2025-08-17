@@ -7,6 +7,7 @@ class Timer24HCard extends HTMLElement {
     this.isAtHome = false;
     this.lastControlledStates = new Map(); // Track last sent commands
     this.lastHomeStatus = undefined; // Track home status changes
+    this.language = this.detectLanguage(); // Auto-detect language
   }
 
   initializeTimeSlots() {
@@ -16,6 +17,46 @@ class Timer24HCard extends HTMLElement {
       slots.push({ hour, minute: 30, isActive: false });
     }
     return slots;
+  }
+
+  detectLanguage() {
+    // Try to detect language from Home Assistant or browser
+    if (this._hass && this._hass.language) {
+      return this._hass.language;
+    }
+    
+    // Check browser language
+    const browserLang = navigator.language || navigator.userLanguage;
+    if (browserLang.startsWith('he')) {
+      return 'he';
+    }
+    
+    // Default to English
+    return 'en';
+  }
+
+  translate(key) {
+    const translations = {
+      en: {
+        'will_turn_on': 'WILL TURN ON',
+        'sensors_block': 'SENSORS BLOCK',
+        'time_inactive': 'TIME INACTIVE',
+        'not_ready': 'NOT READY',
+        'no_entities': 'NO ENTITIES',
+        'error': 'ERROR'
+      },
+      he: {
+        'will_turn_on': 'ידלק',
+        'sensors_block': 'חסום ע"י סנסורים',
+        'time_inactive': 'זמן לא פעיל',
+        'not_ready': 'לא מוכן',
+        'no_entities': 'אין ישויות',
+        'error': 'שגיאה'
+      }
+    };
+
+    const lang = this.language || 'en';
+    return translations[lang]?.[key] || translations['en'][key] || key;
   }
 
   setConfig(config) {
@@ -381,7 +422,7 @@ class Timer24HCard extends HTMLElement {
       case 'will-activate':
         return {
           icon: '⚡',
-          text: 'WILL TURN ON',
+          text: this.translate('will_turn_on'),
           bgColor: 'rgba(5, 150, 105, 0.15)',
           borderColor: '#059669',
           borderWidth: '3'
@@ -391,7 +432,7 @@ class Timer24HCard extends HTMLElement {
         if (!this.currentTime) {
           return {
             icon: '⏳',
-            text: 'NOT READY',
+            text: this.translate('not_ready'),
             bgColor: 'rgba(107, 114, 128, 0.15)',
             borderColor: '#6b7280',
             borderWidth: '2'
@@ -408,7 +449,7 @@ class Timer24HCard extends HTMLElement {
         if (!currentSlot || !currentSlot.isActive) {
           return {
             icon: '⏸️',
-            text: 'TIME INACTIVE',
+            text: this.translate('time_inactive'),
             bgColor: 'rgba(220, 38, 38, 0.15)',
             borderColor: '#dc2626',
             borderWidth: '2'
@@ -416,7 +457,7 @@ class Timer24HCard extends HTMLElement {
         } else {
           return {
             icon: '🚫',
-            text: 'SENSORS BLOCK',
+            text: this.translate('sensors_block'),
             bgColor: 'rgba(245, 101, 101, 0.15)',
             borderColor: '#f56565',
             borderWidth: '2'
@@ -425,7 +466,7 @@ class Timer24HCard extends HTMLElement {
       case 'no-entities':
         return {
           icon: '⚙️',
-          text: 'NO ENTITIES',
+          text: this.translate('no_entities'),
           bgColor: 'rgba(107, 114, 128, 0.15)',
           borderColor: '#6b7280',
           borderWidth: '2'
@@ -433,7 +474,7 @@ class Timer24HCard extends HTMLElement {
       default:
         return {
           icon: '❓',
-          text: 'ERROR',
+          text: this.translate('error'),
           bgColor: 'rgba(107, 114, 128, 0.15)',
           borderColor: '#6b7280',
           borderWidth: '2'
@@ -531,6 +572,16 @@ class Timer24HCard extends HTMLElement {
   }
 
   render() {
+    // Update language detection
+    this.language = this.detectLanguage();
+    
+    // Set the lang attribute for RTL support
+    if (this.language === 'he') {
+      this.setAttribute('lang', 'he');
+    } else {
+      this.setAttribute('lang', 'en');
+    }
+    
     const centerX = 200;
     const centerY = 200;
     const outerRadius = 150;
@@ -541,6 +592,11 @@ class Timer24HCard extends HTMLElement {
         :host {
           display: block;
           font-family: var(--primary-font-family, sans-serif);
+          direction: var(--card-direction, ltr);
+        }
+        
+        :host([lang="he"]) {
+          direction: rtl;
         }
         
         

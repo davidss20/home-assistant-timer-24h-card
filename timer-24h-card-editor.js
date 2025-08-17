@@ -2,6 +2,81 @@ class Timer24HCardEditor extends HTMLElement {
   constructor() {
     super();
     this.entityFilter = '';
+    this.language = this.detectLanguage();
+  }
+
+  detectLanguage() {
+    // Try to detect language from Home Assistant or browser
+    if (this._hass && this._hass.language) {
+      return this._hass.language;
+    }
+    
+    // Check browser language
+    const browserLang = navigator.language || navigator.userLanguage;
+    if (browserLang.startsWith('he')) {
+      return 'he';
+    }
+    
+    // Default to English
+    return 'en';
+  }
+
+  translate(key) {
+    const translations = {
+      en: {
+        'card_configuration': '🕐 Timer 24H Card Configuration',
+        'configure_timer': 'Configure your 24-hour timer with automatic entity control',
+        'card_title': 'Card Title',
+        'enter_card_title': 'Enter card title',
+        'title_help': 'The title displayed at the top of the card',
+        'home_presence_settings': 'Home Presence Settings',
+        'sensors_for_home': 'Sensors for home presence detection',
+        'sensors_help': '💡 Select sensors that indicate when you are at home (person, device_tracker, binary_sensor, etc.)',
+        'home_detection_logic': 'Home detection logic',
+        'or_logic': '🔀 OR - At least one sensor must be active',
+        'and_logic': '🔗 AND - All sensors must be active',
+        'logic_help': '🤔 How to determine if you are at home based on the selected sensors',
+        'entity_control': 'Entity Control',
+        'entities_to_control': 'Entities to control based on timer',
+        'search_entities': '🔍 Search entities...',
+        'entities_help': '⚡ Select entities that will be automatically turned on/off according to the schedule',
+        'additional_settings': 'Additional Settings',
+        'save_timer_settings': '💾 Save timer settings in browser',
+        'save_settings_help': '💡 If checked, your timer settings will be saved even after refreshing the page or closing the browser',
+        'card_ready': '✨ Your card is ready! The timer will automatically control your selected entities based on your schedule and home presence.',
+        'loading_entities': 'Loading Home Assistant entities...',
+        'no_suitable_sensors': 'No suitable sensors found',
+        'no_controllable_entities': 'No controllable entities found'
+      },
+      he: {
+        'card_configuration': '🕐 הגדרות כרטיס טיימר 24 שעות',
+        'configure_timer': 'הגדר את הטיימר שלך עם שליטה אוטומטית בישויות',
+        'card_title': 'כותרת הכרטיס',
+        'enter_card_title': 'הזן כותרת לכרטיס',
+        'title_help': 'הכותרת שתוצג בחלק העליון של הכרטיס',
+        'home_presence_settings': 'הגדרות נוכחות בבית',
+        'sensors_for_home': 'סנסורים לזיהוי נוכחות בבית',
+        'sensors_help': '💡 בחר סנסורים שמציינים שאתה נמצא בבית (person, device_tracker, binary_sensor, וכו\')',
+        'home_detection_logic': 'לוגיקת זיהוי נוכחות בבית',
+        'or_logic': '🔀 OR - לפחות סנסור אחד חייב להיות פעיל',
+        'and_logic': '🔗 AND - כל הסנסורים חייבים להיות פעילים',
+        'logic_help': '🤔 איך לקבוע אם אתה בבית על בסיס הסנסורים הנבחרים',
+        'entity_control': 'שליטה בישויות',
+        'entities_to_control': 'ישויות לשליטה על פי הטיימר',
+        'search_entities': '🔍 חפש ישויות...',
+        'entities_help': '⚡ בחר ישויות שיודלקו/יכבו אוטומטית לפי הלוח הזמנים',
+        'additional_settings': 'הגדרות נוספות',
+        'save_timer_settings': '💾 שמור הגדרות טיימר בדפדפן',
+        'save_settings_help': '💡 אם מסומן, ההגדרות שלך יישמרו גם אחרי רענון הדף או סגירת הדפדפן',
+        'card_ready': '✨ הכרטיס מוכן! הטיימר ישלט אוטומטית בישויות הנבחרות על פי הלוח הזמנים ונוכחותך בבית.',
+        'loading_entities': 'טוען ישויות Home Assistant...',
+        'no_suitable_sensors': 'לא נמצאו סנסורים מתאימים',
+        'no_controllable_entities': 'לא נמצאו ישויות לשליטה'
+      }
+    };
+
+    const lang = this.language || 'en';
+    return translations[lang]?.[key] || translations['en'][key] || key;
   }
 
   setConfig(config) {
@@ -300,8 +375,8 @@ class Timer24HCardEditor extends HTMLElement {
       
       <div class="card-config">
         <div class="config-header">
-          <h2>🕐 Timer 24H Card Configuration</h2>
-          <p>Configure your 24-hour timer with automatic entity control</p>
+          <h2>${this.translate('card_configuration')}</h2>
+          <p>${this.translate('configure_timer')}</p>
         </div>
 
         <div class="config-row">

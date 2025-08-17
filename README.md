@@ -30,15 +30,29 @@ A custom card for Home Assistant that allows you to set a daily schedule with au
 
 ## 📥 Installation
 
+### 📡 Choose Your Update Channel
+
+| Channel | Description | Recommended For |
+|---------|-------------|-----------------|
+| 🟢 **Stable** | Tested releases only | Most users |
+| 🟡 **Beta** | Latest features, pre-release | Advanced users |
+| 🔴 **Development** | Daily builds, cutting edge | Developers |
+
+> 📖 **[Full Channel Guide →](CHANNELS.md)**
+
 ### Via HACS (Recommended)
 
 1. Open HACS in Home Assistant
 2. Go to "Frontend" 
 3. Click "+" and choose "Add custom repository"
-4. Add the link: `https://github.com/davidss20/home-assistant-timer-card`
+4. Add the link: `https://github.com/davidss20/timer-24h-card`
 5. Choose category: "Lovelace"
-6. Install "Timer 24H Card"
-7. **Restart Home Assistant**
+6. **Choose Channel**:
+   - **Stable**: Install normally (default)
+   - **Beta**: Enable "Show beta versions" in HACS settings first
+   - **Development**: Use manual installation below
+7. Install "Timer 24H Card"
+8. **Restart Home Assistant**
 
 ### Manual Installation
 

@@ -2,5 +2,10 @@
   "name": "Timer 24H Card",
   "render_readme": true,
   "content_in_root": false,
-  "filename": "timer-24h-card.js"
+  "filename": "timer-24h-card.js",
+  "hacs": "1.6.0",
+  "domains": ["lovelace"],
+  "iot_class": "Calculated",
+  "homeassistant": "0.115.0",
+  "zip_release": true
 } 
