@@ -102,6 +102,8 @@ class Timer24HCard extends HTMLElement {
       title: config.title || '24 Hour Timer',
       // Whether to save settings in local storage
       save_state: config.save_state !== false,
+      // Save to Home Assistant instead of localStorage
+      save_to_ha: config.save_to_ha !== false,
       // Home presence logic
       home_logic: config.home_logic || 'OR',
       // Language override (auto, en, he)
@@ -302,19 +304,98 @@ class Timer24HCard extends HTMLElement {
 
   saveState() {
     if (this.config.save_state) {
-      localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(this.timeSlots));
+      const state = {
+        timeSlots: this.timeSlots,
+        timestamp: Date.now()
+      };
+      
+      // Try to save to Home Assistant first
+      if (this._hass && this.config.save_to_ha !== false) {
+        this.saveToHomeAssistant(state);
+      } else {
+        // Fallback to localStorage
+        localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(state));
+        console.log('💾 Timer Card: State saved to localStorage (fallback)');
+      }
+    }
+  }
+
+  async saveToHomeAssistant(state) {
+    try {
+      const entityId = `input_text.timer_24h_card_${this.config.title.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+      
+      // Check if entity exists
+      if (!this._hass.states[entityId]) {
+        console.warn('⚠️ Timer Card: Entity not found:', entityId);
+        console.log('📝 Please create this entity in configuration.yaml:');
+        console.log(`input_text:\n  timer_24h_card_${this.config.title.toLowerCase().replace(/[^a-z0-9]/g, '_')}:\n    name: "${this.config.title} Timer State"\n    max: 10000`);
+        
+        // Fallback to localStorage
+        localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(state));
+        return;
+      }
+      
+      // Save state to the entity
+      await this._hass.callService('input_text', 'set_value', {
+        entity_id: entityId,
+        value: JSON.stringify(state)
+      });
+      
+      console.log('✅ Timer Card: State saved to Home Assistant entity:', entityId);
+    } catch (error) {
+      console.warn('⚠️ Timer Card: Failed to save to HA, using localStorage fallback:', error);
+      // Fallback to localStorage
+      localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(state));
     }
   }
 
   loadSavedState() {
     if (this.config.save_state) {
-      const saved = localStorage.getItem(`timer-24h-${this.config.title}`);
-      if (saved) {
-        try {
-          this.timeSlots = JSON.parse(saved);
-        } catch (e) {
-          console.error('Failed to load saved state:', e);
+      // Try to load from Home Assistant first
+      if (this._hass && this.config.save_to_ha !== false) {
+        this.loadFromHomeAssistant();
+      } else {
+        // Fallback to localStorage
+        this.loadFromLocalStorage();
+      }
+    }
+  }
+
+  loadFromHomeAssistant() {
+    try {
+      const entityId = `input_text.timer_24h_card_${this.config.title.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+      const entity = this._hass.states[entityId];
+      
+      if (entity && entity.state && entity.state !== 'unknown' && entity.state !== '') {
+        const state = JSON.parse(entity.state);
+        if (state.timeSlots) {
+          this.timeSlots = state.timeSlots;
+          console.log('✅ Timer Card: State loaded from Home Assistant entity:', entityId);
+          return;
         }
+      }
+    } catch (error) {
+      console.warn('⚠️ Timer Card: Failed to load from HA, trying localStorage:', error);
+    }
+    
+    // Fallback to localStorage
+    this.loadFromLocalStorage();
+  }
+
+  loadFromLocalStorage() {
+    const saved = localStorage.getItem(`timer-24h-${this.config.title}`);
+    if (saved) {
+      try {
+        const state = JSON.parse(saved);
+        // Handle both old and new format
+        if (state.timeSlots) {
+          this.timeSlots = state.timeSlots;
+        } else if (Array.isArray(state)) {
+          this.timeSlots = state; // Old format
+        }
+        console.log('💾 Timer Card: State loaded from localStorage');
+      } catch (e) {
+        console.error('❌ Timer Card: Failed to load saved state:', e);
       }
     }
   }

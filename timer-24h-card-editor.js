@@ -512,9 +512,19 @@ class Timer24HCardEditor extends HTMLElement {
             id="save-state"
             ${this.config.save_state !== false ? 'checked' : ''}
           />
-          <label for="save-state">💾 Save timer settings in browser</label>
+          <label for="save-state">💾 Save timer settings</label>
         </div>
-        <div class="help-text">💡 If checked, your timer settings will be saved even after refreshing the page or closing the browser</div>
+        <div class="help-text">💡 If checked, your timer settings will be saved and synced across all devices</div>
+        
+        <div class="checkbox-container">
+          <input
+            type="checkbox"
+            id="save-to-ha"
+            ${this.config.save_to_ha !== false ? 'checked' : ''}
+          />
+          <label for="save-to-ha">🏠 Save to Home Assistant (sync across devices)</label>
+        </div>
+        <div class="help-text">🌐 Save timer settings to Home Assistant for synchronization across all devices. Requires input_text entity setup.</div>
         
         <div class="config-footer">
           <p>✨ Your card is ready! The timer will automatically control your selected entities based on your schedule and home presence.</p>
@@ -580,6 +590,15 @@ class Timer24HCardEditor extends HTMLElement {
     if (saveStateElement) {
       saveStateElement.addEventListener('change', (e) => {
         this.config = { ...this.config, save_state: e.target.checked };
+        this.configChanged();
+      });
+    }
+
+    // Save to Home Assistant
+    const saveToHaElement = this.querySelector('#save-to-ha');
+    if (saveToHaElement) {
+      saveToHaElement.addEventListener('change', (e) => {
+        this.config = { ...this.config, save_to_ha: e.target.checked };
         this.configChanged();
       });
     }

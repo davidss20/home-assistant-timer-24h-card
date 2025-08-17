@@ -124,7 +124,8 @@ entities:
   - switch.garden_lights
   - fan.bedroom
 save_state: true
-language: auto  # Options: auto, en, he
+save_to_ha: true      # Sync across devices
+language: auto        # Options: auto, en, he
 ```
 
 ## ⚙️ Configuration Options
@@ -135,7 +136,8 @@ language: auto  # Options: auto, en, he
 | `home_sensors` | list | ❌ | `[]` | List of sensors for presence detection |
 | `home_logic` | string | ❌ | "OR" | Detection logic: OR or AND |
 | `entities` | list | ❌ | `[]` | Entities for automatic control |
-| `save_state` | boolean | ❌ | `true` | Save settings in browser |
+| `save_state` | boolean | ❌ | `true` | Save timer settings |
+| `save_to_ha` | boolean | ❌ | `true` | Sync across devices via Home Assistant |
 | `language` | string | ❌ | `auto` | Language: `auto`, `en`, `he` |
 
 ### Supported Sensor Types for Presence Detection:
@@ -235,6 +237,55 @@ If the card shows English instead of Hebrew:
 2. Look for "🌍 Language Detection Debug" messages
 3. Check if Hebrew is detected correctly
 4. Force Hebrew with `language: he` in configuration
+
+---
+
+## 🔄 Cross-Device Synchronization
+
+Keep your timer settings synced across all devices (phone, tablet, computer)!
+
+### 🏠 Home Assistant Sync (Recommended)
+
+#### Quick Setup:
+1. **Add to `configuration.yaml`**:
+   ```yaml
+   input_text:
+     timer_24h_card_lighting_timer:  # Based on your card title
+       name: "Lighting Timer State"
+       max: 10000
+   ```
+
+2. **Restart Home Assistant**
+
+3. **Configure card**:
+   ```yaml
+   type: custom:timer-24h-card
+   title: "Lighting Timer"  # Must match entity name
+   save_to_ha: true        # Enable HA sync
+   ```
+
+#### Benefits:
+- **📱 Multi-device sync**: Same settings on phone, tablet, computer
+- **☁️ Cloud backup**: Settings stored safely in Home Assistant  
+- **🔄 Real-time sync**: Changes appear instantly on all devices
+- **🔒 Secure**: Data stays in your Home Assistant instance
+
+#### Entity Name Generation:
+| Card Title | Entity ID |
+|------------|-----------|
+| "Lighting Timer" | `input_text.timer_24h_card_lighting_timer` |
+| "Bedroom Lights" | `input_text.timer_24h_card_bedroom_lights` |
+| "טיימר תאורה" | `input_text.timer_24h_card_טיימר_תאורה` |
+
+> 📖 **[Full Setup Guide →](SYNC_SETUP.md)**
+
+### 💾 Browser Storage (Fallback)
+If Home Assistant sync is disabled or fails, settings are saved locally in each browser.
+
+```yaml
+type: custom:timer-24h-card
+save_to_ha: false  # Use browser storage only
+```
 
 ---
 
