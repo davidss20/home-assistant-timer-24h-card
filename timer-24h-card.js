@@ -337,7 +337,72 @@ class Timer24HCard extends HTMLElement {
     }
   }
 
+  loadSavedState() {
+    if (this.config.save_state) {
+      // Try to load from Home Assistant notification first
+      if (this._hass && this.config.save_to_ha !== false) {
+        this.loadFromHAStorage();
+      } else {
+        // Fallback to localStorage
+        this.loadFromLocalStorage();
+      }
+    }
+  }
 
+  async loadFromHAStorage() {
+    try {
+      if (!this._syncKey || !this._hass) {
+        console.log('⚠️ HA not available, using localStorage');
+        this.loadFromLocalStorage();
+        return;
+      }
+      
+      console.log('🌐 Loading from HA notification...');
+      
+      // Check if notification exists
+      const notifications = this._hass.states['persistent_notification.' + this._syncKey];
+      if (notifications && notifications.attributes?.message) {
+        try {
+          const syncData = JSON.parse(notifications.attributes.message);
+          
+          console.log('✅ Loaded data from HA notification');
+          this.timeSlots = syncData.timeSlots || this.timeSlots;
+          this._lastKnownState = JSON.stringify(this.timeSlots);
+          
+          this.updateDisplay();
+          this.controlEntities();
+          return;
+        } catch (parseError) {
+          console.log('⚠️ Failed to parse notification data');
+        }
+      }
+      
+      console.log('⚠️ No notification found, using localStorage');
+      this.loadFromLocalStorage();
+      
+    } catch (error) {
+      console.warn('⚠️ Failed to load from HA notification:', error);
+      this.loadFromLocalStorage();
+    }
+  }
+
+  loadFromLocalStorage() {
+    try {
+      const savedState = localStorage.getItem(`timer-24h-${this.config.title}`);
+      if (savedState) {
+        const state = JSON.parse(savedState);
+        if (state.timeSlots) {
+          this.timeSlots = state.timeSlots;
+          this._lastKnownState = JSON.stringify(this.timeSlots);
+          console.log('✅ Timer Card: State loaded from localStorage');
+          this.updateDisplay();
+          this.controlEntities();
+        }
+      }
+    } catch (e) {
+      console.error('❌ Timer Card: Failed to load saved state:', e);
+    }
+  }
 
   async saveToHAStorage(state) {
     try {
