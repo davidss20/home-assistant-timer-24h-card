@@ -69,7 +69,8 @@ class Timer24HCard extends HTMLElement {
   }
 
   checkHomeStatus() {
-    if (!this._hass || !this.config.home_sensors.length) {
+    // Safety check: ensure hass and states are available
+    if (!this._hass || !this._hass.states || !this.config.home_sensors.length) {
       this.isAtHome = true; // Default - at home
       return;
     }
@@ -133,7 +134,8 @@ class Timer24HCard extends HTMLElement {
   }
 
   controlEntities() {
-    if (!this._hass || !this.config.entities.length || !this.isAtHome) {
+    // Safety check: ensure hass and states are available
+    if (!this._hass || !this._hass.states || !this.config.entities.length || !this.isAtHome) {
       return;
     }
 
@@ -160,10 +162,14 @@ class Timer24HCard extends HTMLElement {
       // 2. We haven't already sent this command (to prevent infinite loops)
       if (currentState !== shouldBeOn && lastControlledState !== shouldBeOn) {
         try {
-          this._hass.callService('homeassistant', shouldBeOn ? 'turn_on' : 'turn_off', {
-            entity_id: entityId
-          });
-          console.log(`Timer Card: ${shouldBeOn ? 'Turned on' : 'Turned off'} ${entityId}`);
+          if (this._hass.callService) {
+            this._hass.callService('homeassistant', shouldBeOn ? 'turn_on' : 'turn_off', {
+              entity_id: entityId
+            });
+            console.log(`Timer Card: ${shouldBeOn ? 'Turned on' : 'Turned off'} ${entityId}`);
+          } else {
+            console.warn('Timer Card: callService not available');
+          }
           
           // Remember what command we sent
           this.lastControlledStates.set(entityId, shouldBeOn);
