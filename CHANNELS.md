@@ -32,7 +32,7 @@
 #### ערוץ יציב:
 ```yaml
 # 1. הוסף repository מותאם אישית ב-HACS
-https://github.com/davidss20/timer-24h-card
+https://github.com/davidss20/home-assistant-timer-24h-card
 
 # 2. בחר "Stable" או השאר ברירת מחדל
 # 3. התקן בדרך הרגילה
@@ -41,7 +41,7 @@ https://github.com/davidss20/timer-24h-card
 #### ערוץ בטא:
 ```yaml
 # 1. הוסף repository מותאם אישית ב-HACS
-https://github.com/davidss20/timer-24h-card
+https://github.com/davidss20/home-assistant-timer-24h-card
 
 # 2. הפעל "Show beta versions" בהגדרות HACS
 # 3. בחר גרסת בטא מהרשימה
@@ -60,13 +60,13 @@ https://github.com/davidss20/timer-24h-card
 #### שלב 1: הורדה
 ```bash
 # ערוץ יציב
-wget https://github.com/davidss20/timer-24h-card/releases/latest/download/timer-24h-card-latest.zip
+wget https://github.com/davidss20/home-assistant-timer-24h-card/releases/latest/download/timer-24h-card-latest.zip
 
 # ערוץ בטא
-wget https://github.com/davidss20/timer-24h-card/releases/download/v1.1.0-beta/timer-24h-card-v1.1.0-beta.zip
+wget https://github.com/davidss20/home-assistant-timer-24h-card/releases/download/v1.1.0-beta/timer-24h-card-v1.1.0-beta.zip
 
 # ערוץ פיתוח
-git clone -b main https://github.com/davidss20/timer-24h-card.git
+git clone -b main https://github.com/davidss20/home-assistant-timer-24h-card.git
 ```
 
 #### שלב 2: העתקה
@@ -122,9 +122,9 @@ lovelace:
 ## 🆘 תמיכה ובאגים
 
 ### דיווח באגים:
-- **🟢 יציב**: [Issues](https://github.com/davidss20/timer-24h-card/issues) עם תג `stable`
-- **🟡 בטא**: [Issues](https://github.com/davidss20/timer-24h-card/issues) עם תג `beta`  
-- **🔴 פיתוח**: [Discussions](https://github.com/davidss20/timer-24h-card/discussions)
+- **🟢 יציב**: [Issues](https://github.com/davidss20/home-assistant-timer-24h-card/issues) עם תג `stable`
+- **🟡 בטא**: [Issues](https://github.com/davidss20/home-assistant-timer-24h-card/issues) עם תג `beta`  
+- **🔴 פיתוח**: [Discussions](https://github.com/davidss20/home-assistant-timer-24h-card/discussions)
 
 ### מידע לדיווח:
 ```yaml

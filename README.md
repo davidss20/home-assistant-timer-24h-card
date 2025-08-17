@@ -3,9 +3,9 @@
 <div align="center">
 
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://github.com/hacs/integration)
-[![GitHub Release](https://img.shields.io/github/release/davidss20/timer-24h-card.svg?style=for-the-badge&color=blue)](https://github.com/davidss20/timer-24h-card/releases)
+[![GitHub Release](https://img.shields.io/github/release/davidss20/timer-24h-card.svg?style=for-the-badge&color=blue)](https://github.com/davidss20/home-assistant-timer-24h-card/releases)
 [![License](https://img.shields.io/github/license/davidss20/timer-24h-card.svg?style=for-the-badge&color=green)](LICENSE)
-[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg?style=for-the-badge)](https://github.com/davidss20/timer-24h-card/graphs/commit-activity)
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg?style=for-the-badge)](https://github.com/davidss20/home-assistant-timer-24h-card/graphs/commit-activity)
 
 </div>
 
@@ -13,7 +13,7 @@ A custom card for Home Assistant that allows you to set a daily schedule with au
 
 <div align="center">
 
-![Timer 24H Card Preview](https://github.com/davidss20/timer-24h-card/raw/main/images/preview.svg)
+![Timer 24H Card Preview](https://github.com/davidss20/home-assistant-timer-24h-card/raw/main/images/preview.svg)
 
 *24-hour circular timer with automatic entity control and home presence detection*
 
@@ -45,7 +45,7 @@ A custom card for Home Assistant that allows you to set a daily schedule with au
 1. Open HACS in Home Assistant
 2. Go to "Frontend" 
 3. Click "+" and choose "Add custom repository"
-4. Add the link: `https://github.com/davidss20/timer-24h-card`
+4. Add the link: `https://github.com/davidss20/home-assistant-timer-24h-card`
 5. Choose category: "Lovelace"
 6. **Choose Channel**:
    - **Stable**: Install normally (default)
@@ -80,21 +80,21 @@ lovelace:
 <table>
 <tr>
 <td align="center">
-<img src="https://github.com/davidss20/timer-24h-card/raw/main/images/active-timer.svg" width="300">
+<img src="https://github.com/davidss20/home-assistant-timer-24h-card/raw/main/images/active-timer.svg" width="300">
 <br><em>Active Timer Segments</em>
 </td>
 <td align="center">
-<img src="https://github.com/davidss20/timer-24h-card/raw/main/images/visual-editor.svg" width="300">
+<img src="https://github.com/davidss20/home-assistant-timer-24h-card/raw/main/images/visual-editor.svg" width="300">
 <br><em>Visual Configuration Editor</em>
 </td>
 </tr>
 <tr>
 <td align="center">
-<img src="https://github.com/davidss20/timer-24h-card/raw/main/images/grid-layout.svg" width="300">
+<img src="https://github.com/davidss20/home-assistant-timer-24h-card/raw/main/images/grid-layout.svg" width="300">
 <br><em>Sections Grid Layout</em>
 </td>
 <td align="center">
-<img src="https://github.com/davidss20/timer-24h-card/raw/main/images/mobile-view.svg" width="200">
+<img src="https://github.com/davidss20/home-assistant-timer-24h-card/raw/main/images/mobile-view.svg" width="200">
 <br><em>Mobile Responsive</em>
 </td>
 </tr>
@@ -249,9 +249,9 @@ Want to see the card in action before installing? Try our interactive preview:
 
 ## 🆘 Support
 
-- **🐛 Bug Reports**: [GitHub Issues](https://github.com/davidss20/timer-24h-card/issues)
-- **💡 Feature Requests**: [GitHub Discussions](https://github.com/davidss20/timer-24h-card/discussions)
-- **📖 Additional Documentation**: [Wiki](https://github.com/davidss20/timer-24h-card/wiki)
+- **🐛 Bug Reports**: [GitHub Issues](https://github.com/davidss20/home-assistant-timer-24h-card/issues)
+- **💡 Feature Requests**: [GitHub Discussions](https://github.com/davidss20/home-assistant-timer-24h-card/discussions)
+- **📖 Additional Documentation**: [Wiki](https://github.com/davidss20/home-assistant-timer-24h-card/wiki)
 
 ## 📄 License
 
