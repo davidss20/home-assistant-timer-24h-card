@@ -127,7 +127,7 @@ class Timer24HCard extends HTMLElement {
       try {
         const oldSensorStatus = this.checkSensorStatus();
         const oldLanguage = this.language;
-        this._hass = hass;
+    this._hass = hass;
         
         // Update language when hass changes
         const newLanguage = this.detectLanguage();
@@ -139,13 +139,13 @@ class Timer24HCard extends HTMLElement {
           return; // Exit early since render() will call updateDisplay
         }
         
-        this.checkHomeStatus();
+    this.checkHomeStatus();
         
         // Update display and control when sensor status changes
         const newSensorStatus = this.checkSensorStatus();
         if (oldSensorStatus !== newSensorStatus) {
           this.updateDisplay();
-          this.controlEntities();
+    this.controlEntities();
         }
         
         this.updateCurrentTime();
@@ -222,7 +222,7 @@ class Timer24HCard extends HTMLElement {
     // Only update display and control entities if time segment changed
     if (oldHour !== newHour || oldMinute !== newMinute) {
       console.log(`Timer Card: Time segment changed to ${newHour}:${newMinute === 0 ? '00' : '30'}`);
-      this.updateDisplay();
+    this.updateDisplay();
       this.controlEntities();
     }
   }
@@ -257,9 +257,9 @@ class Timer24HCard extends HTMLElement {
       if (currentState !== shouldBeOn && lastControlledState !== shouldBeOn) {
         try {
           if (this._hass.callService) {
-            this._hass.callService('homeassistant', shouldBeOn ? 'turn_on' : 'turn_off', {
-              entity_id: entityId
-            });
+        this._hass.callService('homeassistant', shouldBeOn ? 'turn_on' : 'turn_off', {
+          entity_id: entityId
+        });
             console.log(`Timer Card: ${shouldBeOn ? 'Turned on' : 'Turned off'} ${entityId}`);
           } else {
             console.warn('Timer Card: callService not available');
@@ -304,34 +304,57 @@ class Timer24HCard extends HTMLElement {
   }
 
   saveState() {
+    console.log('🔄 SAVE STATE DEBUG:', {
+      save_state: this.config.save_state,
+      save_to_ha: this.config.save_to_ha,
+      has_hass: !!this._hass,
+      title: this.config.title,
+      timeSlots_count: this.timeSlots.length
+    });
+    
     if (this.config.save_state) {
       const state = {
         timeSlots: this.timeSlots,
         timestamp: Date.now()
       };
       
-      // Try to save to Home Assistant first
+      console.log('💾 Saving state:', state);
+      
+      // Always save to localStorage first (for immediate cross-tab sync)
+      console.log('💾 Saving to localStorage...');
+      localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(state));
+      console.log('✅ State saved to localStorage');
+      
+      // Also try to save to Home Assistant if enabled
       if (this._hass && this.config.save_to_ha !== false) {
+        console.log('🏠 Also attempting to save to Home Assistant...');
         this.saveToHomeAssistant(state);
-        // Update our known state to prevent sync loops
-        this._lastKnownState = JSON.stringify(state.timeSlots);
       } else {
-        // Fallback to localStorage
-        localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(state));
-        console.log('💾 Timer Card: State saved to localStorage (fallback)');
+        console.log('⚠️ HA save disabled, using localStorage only');
       }
+      
+      // Update our known state to prevent sync loops
+      this._lastKnownState = JSON.stringify(state.timeSlots);
+    } else {
+      console.log('⚠️ Save state is disabled in config');
     }
   }
 
   async saveToHomeAssistant(state) {
+    console.log('🏠 SAVE TO HA DEBUG - Starting...');
     try {
       const cardId = this.config.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      console.log('📝 Card ID:', cardId);
       
       // Use multiple input_text entities for better reliability
       const entityIds = [
         `input_text.timer_card_${cardId}_data`,
         `input_text.timer_card_${cardId}_backup`
       ];
+      
+      console.log('🎯 Target entities:', entityIds);
+      console.log('🔍 Available services:', Object.keys(this._hass.services || {}));
+      console.log('📊 Current entities in HA:', Object.keys(this._hass.states || {}).filter(e => e.includes('timer_card')));
       
       const stateJson = JSON.stringify(state);
       let savedSuccessfully = false;
@@ -572,14 +595,20 @@ class Timer24HCard extends HTMLElement {
   }
 
   loadFromHomeAssistant() {
+    console.log('🔄 LOAD FROM HA DEBUG - Starting...');
     try {
       const cardId = this.config.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      console.log('📝 Card ID for loading:', cardId);
       
       // Try to load from multiple input_text entities
       const entityIds = [
         `input_text.timer_card_${cardId}_data`,
         `input_text.timer_card_${cardId}_backup`
       ];
+      
+      console.log('🎯 Looking for entities:', entityIds);
+      console.log('📊 All HA states available:', Object.keys(this._hass.states || {}).length);
+      console.log('🔍 Timer-related entities found:', Object.keys(this._hass.states || {}).filter(e => e.includes('timer')));
       
       for (const entityId of entityIds) {
         try {
@@ -627,9 +656,9 @@ class Timer24HCard extends HTMLElement {
   }
 
   loadFromLocalStorage() {
-    const saved = localStorage.getItem(`timer-24h-${this.config.title}`);
-    if (saved) {
-      try {
+      const saved = localStorage.getItem(`timer-24h-${this.config.title}`);
+      if (saved) {
+        try {
         const state = JSON.parse(saved);
         // Handle both old and new format
         if (state.timeSlots) {
@@ -638,24 +667,68 @@ class Timer24HCard extends HTMLElement {
           this.timeSlots = state; // Old format
         }
         console.log('💾 Timer Card: State loaded from localStorage');
-      } catch (e) {
+        } catch (e) {
         console.error('❌ Timer Card: Failed to load saved state:', e);
       }
     }
   }
 
   setupRealtimeSync() {
-    if (!this._hass || !this.config.save_to_ha) return;
+    console.log('🔄 SETUP SYNC DEBUG:', {
+      has_hass: !!this._hass,
+      save_to_ha: this.config.save_to_ha,
+      title: this.config.title
+    });
     
     const cardId = this.config.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
     this._lastKnownState = JSON.stringify(this.timeSlots);
     
-    // Monitor entity state changes for sync
-    this._entityCheckInterval = setInterval(() => {
-      this.checkForEntityChanges();
-    }, 5000); // Check every 5 seconds
+    // Always set up localStorage sync (works immediately)
+    this.setupLocalStorageSync();
     
-    console.log('🔄 Timer Card: Real-time sync enabled for', cardId);
+    // Also try HA sync if enabled
+    if (this._hass && this.config.save_to_ha !== false) {
+      // Monitor entity state changes for sync
+      this._entityCheckInterval = setInterval(() => {
+        this.checkForEntityChanges();
+      }, 5000); // Check every 5 seconds
+      
+      console.log('✅ Timer Card: HA sync enabled for', cardId);
+    } else {
+      console.log('⚠️ HA sync disabled, using localStorage only');
+    }
+    
+    console.log('🔄 Real-time sync enabled for', cardId);
+  }
+
+  setupLocalStorageSync() {
+    // Listen for localStorage changes from other tabs/windows
+    window.addEventListener('storage', (event) => {
+      const storageKey = `timer-24h-${this.config.title}`;
+      
+      if (event.key === storageKey && event.newValue) {
+        try {
+          const newState = JSON.parse(event.newValue);
+          const currentStateStr = JSON.stringify(this.timeSlots);
+          const newStateStr = JSON.stringify(newState.timeSlots || []);
+          
+          if (newStateStr !== currentStateStr && newStateStr !== this._lastKnownState) {
+            console.log('🔄 Timer Card: Detected change from another tab/window');
+            
+            if (newState.timeSlots) {
+              this.timeSlots = newState.timeSlots;
+              this._lastKnownState = newStateStr;
+              this.updateDisplay();
+              this.controlEntities();
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to parse localStorage sync data:', error);
+        }
+      }
+    });
+    
+    console.log('💾 localStorage sync enabled for cross-tab synchronization');
   }
 
   checkForEntityChanges() {
@@ -948,7 +1021,7 @@ class Timer24HCard extends HTMLElement {
   updateDisplay() {
     const shadowRoot = this.shadowRoot;
     if (!shadowRoot) return;
-    
+
     // Wait for DOM to be ready
     if (!shadowRoot.querySelector('#center-status-text')) {
       setTimeout(() => this.updateDisplay(), 100);
