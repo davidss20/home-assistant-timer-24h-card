@@ -325,9 +325,9 @@ class Timer24HCard extends HTMLElement {
       localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(state));
       console.log('✅ State saved to localStorage');
       
-      // Send WebSocket event for cross-device sync
-      if (this._hass && this._hass.connection) {
-        this.broadcastSyncEvent(state);
+      // Send sync data to other devices via input_text entity
+      if (this._hass && this.config.save_to_ha !== false) {
+        this.updateSyncEntity(state);
       }
       
       // Update our known state to prevent sync loops
@@ -685,13 +685,13 @@ class Timer24HCard extends HTMLElement {
     // Always set up localStorage sync (works immediately)
     this.setupLocalStorageSync();
     
-    // Set up WebSocket event sync for cross-device synchronization
-    this.setupWebSocketSync(cardId);
+    // Set up input_text entity sync for cross-device synchronization
+    this.setupEntitySync(cardId);
     
     console.log('🔄 Real-time sync enabled for', cardId);
   }
 
-  setupWebSocketSync(cardId) {
+  setupEntitySync(cardId) {
     if (!this._hass) {
       console.log('⚠️ HASS not available, using localStorage only');
       return;
@@ -700,6 +700,7 @@ class Timer24HCard extends HTMLElement {
     try {
       // Create a simple sync entity that all devices can monitor
       const syncEntityId = `input_text.timer_sync_${cardId}`;
+      this._syncEntityId = syncEntityId;
       
       // Try to create the sync entity
       this.createSyncEntity(syncEntityId);
@@ -707,12 +708,12 @@ class Timer24HCard extends HTMLElement {
       // Monitor the sync entity for changes
       this._syncCheckInterval = setInterval(() => {
         this.checkSyncEntity(syncEntityId);
-      }, 2000); // Check every 2 seconds
+      }, 3000); // Check every 3 seconds
       
-      console.log('✅ Simple sync enabled for cross-device synchronization');
+      console.log('✅ Entity sync enabled for cross-device synchronization');
       console.log('🔍 Monitoring sync entity:', syncEntityId);
     } catch (error) {
-      console.warn('⚠️ Could not set up sync:', error);
+      console.warn('⚠️ Could not set up entity sync:', error);
     }
   }
 
@@ -736,30 +737,34 @@ class Timer24HCard extends HTMLElement {
     }
   }
 
-  broadcastSyncEvent(state) {
+  updateSyncEntity(state) {
     try {
-      const cardId = this.config.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
-      const syncEntityId = `input_text.timer_sync_${cardId}`;
+      if (!this._syncEntityId) {
+        console.log('⚠️ Sync entity not initialized');
+        return;
+      }
       
       // Update the sync entity with new data
       const syncData = {
         timeSlots: state.timeSlots,
         timestamp: state.timestamp,
-        device: navigator.userAgent.substr(0, 20) // Device identifier
+        device: `device_${Date.now() % 10000}` // Simple device identifier
       };
       
       this._hass.callService('input_text', 'set_value', {
-        entity_id: syncEntityId,
+        entity_id: this._syncEntityId,
         value: JSON.stringify(syncData)
       });
       
       console.log('📡 Updated sync entity for cross-device sync');
+      console.log('🔍 Entity:', this._syncEntityId);
       
       // Remember what we sent to avoid sync loops
       this._lastSentData = JSON.stringify(state.timeSlots);
       
     } catch (error) {
       console.warn('⚠️ Failed to update sync entity:', error);
+      console.log('🔧 Try creating the entity manually in configuration.yaml');
     }
   }
 
