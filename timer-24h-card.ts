@@ -5,10 +5,8 @@ import {
   CSSResultGroup,
   TemplateResult,
   PropertyValues,
-  svg,
 } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { classMap } from 'lit/directives/class-map.js';
 import { HomeAssistant, LovelaceCard, LovelaceCardConfig } from 'custom-card-helpers';
 
 // Types
@@ -430,7 +428,7 @@ export class Timer24HCard extends LitElement implements LovelaceCard {
               const yInner = centerY + innerRadius * Math.sin(angle);
               const xOuter = centerX + outerRadius * Math.cos(angle);
               const yOuter = centerY + outerRadius * Math.sin(angle);
-              return svg`<line x1="${xInner}" y1="${yInner}" x2="${xOuter}" y2="${yOuter}" 
+              return html`<line x1="${xInner}" y1="${yInner}" x2="${xOuter}" y2="${yOuter}" 
                                stroke="var(--divider-color)" stroke-width="1"/>`;
             })}
             
@@ -442,15 +440,16 @@ export class Timer24HCard extends LitElement implements LovelaceCard {
               const isActive = slot?.isActive || false;
               const isCurrent = this.currentTime.getHours() === hour && this.currentTime.getMinutes() < 30;
               
-              return svg`
-                <path class="${classMap({ sector: true })}" d="${sectorPath}" 
+              return html`
+                <path d="${sectorPath}" 
                       fill="${isActive ? 'var(--primary-color)' : 'var(--card-background-color)'}"
                       stroke="${isCurrent ? 'var(--accent-color)' : 'var(--divider-color)'}"
                       stroke-width="${isCurrent ? '3' : '1'}"
+                      style="cursor: pointer; transition: opacity 0.2s;"
                       @click="${() => this.toggleTimeSlot(hour, 0)}"/>
-                <text class="${classMap({ 'sector-text': true })}" 
-                      x="${textPos.x}" y="${textPos.y + 3}" 
+                <text x="${textPos.x}" y="${textPos.y + 3}" 
                       text-anchor="middle" font-size="10" font-weight="bold"
+                      style="pointer-events: none; user-select: none; font-weight: bold;"
                       fill="${isActive ? 'var(--text-primary-color)' : 'var(--primary-text-color)'}">
                   ${this.getTimeLabel(hour, 0)}
                 </text>
@@ -465,15 +464,16 @@ export class Timer24HCard extends LitElement implements LovelaceCard {
               const isActive = slot?.isActive || false;
               const isCurrent = this.currentTime.getHours() === hour && this.currentTime.getMinutes() >= 30;
               
-              return svg`
-                <path class="${classMap({ sector: true })}" d="${sectorPath}" 
+              return html`
+                <path d="${sectorPath}" 
                       fill="${isActive ? 'var(--primary-color)' : 'var(--card-background-color)'}"
                       stroke="${isCurrent ? 'var(--accent-color)' : 'var(--divider-color)'}"
                       stroke-width="${isCurrent ? '3' : '1'}"
+                      style="cursor: pointer; transition: opacity 0.2s;"
                       @click="${() => this.toggleTimeSlot(hour, 30)}"/>
-                <text class="${classMap({ 'sector-text': true })}" 
-                      x="${textPos.x}" y="${textPos.y + 2}" 
+                <text x="${textPos.x}" y="${textPos.y + 2}" 
                       text-anchor="middle" font-size="8" font-weight="bold"
+                      style="pointer-events: none; user-select: none; font-weight: bold;"
                       fill="${isActive ? 'var(--text-primary-color)' : 'var(--primary-text-color)'}">
                   ${this.getTimeLabel(hour, 30)}
                 </text>
