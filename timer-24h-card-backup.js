@@ -339,64 +339,370 @@ class Timer24HCard extends HTMLElement {
 
 
 
-  async saveToHAStorage(state) {
-    try {
-      const syncData = {
-        timeSlots: state.timeSlots,
-        timestamp: Date.now(),
-        device: `device_${Date.now() % 10000}`
-      };
+  // OLD FUNCTION - REMOVED
+      console.log('📝 Card ID:', cardId);
       
-      console.log('🌐 Saving via persistent notification...');
+      // Use multiple input_text entities for better reliability
+      const entityIds = [
+        `input_text.timer_card_${cardId}_data`,
+        `input_text.timer_card_${cardId}_backup`
+      ];
       
-      // Use persistent notification as storage - simple and reliable
-      await this._hass.callService('persistent_notification', 'create', {
-        notification_id: this._syncKey,
-        title: `Timer Sync ${this.config.title}`,
-        message: JSON.stringify(syncData)
-      });
+      console.log('🎯 Target entities:', entityIds);
+      console.log('🔍 Available services:', Object.keys(this._hass.services || {}));
+      console.log('📊 Current entities in HA:', Object.keys(this._hass.states || {}).filter(e => e.includes('timer_card')));
       
-      console.log('✅ Saved to HA notification storage');
-      this._lastSentData = JSON.stringify(state.timeSlots);
+      const stateJson = JSON.stringify(state);
+      let savedSuccessfully = false;
+      
+      // Try to save to multiple entities for redundancy
+      for (const entityId of entityIds) {
+        try {
+          // Create entity if it doesn't exist
+          if (!this._hass.states[entityId]) {
+            console.log(`🤖 Auto-creating entity: ${entityId}`);
+            const created = await this.createInputTextEntity(entityId);
+            
+            if (created) {
+              // Wait a moment for the entity to be available
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
+          
+          // Try to save to the entity (whether it existed or was just created)
+          try {
+            await this._hass.callService('input_text', 'set_value', {
+              entity_id: entityId,
+              value: stateJson
+            });
+            console.log(`✅ Timer Card: State saved to ${entityId}`);
+            savedSuccessfully = true;
+          } catch (saveError) {
+            // If the entity doesn't exist yet, try to create it with the state
+            if (saveError.message?.includes('not found') || saveError.message?.includes('does not exist')) {
+              console.log(`🔄 Entity not ready yet, trying alternative save for ${entityId}`);
+              await this.saveToEntityAlternative(entityId, stateJson);
+              savedSuccessfully = true;
+            } else {
+              throw saveError;
+            }
+          }
+        } catch (error) {
+          console.warn(`⚠️ Failed to save to ${entityId}:`, error);
+        }
+      }
+      
+      if (!savedSuccessfully) {
+        console.warn('⚠️ Timer Card: No entities available, creating them...');
+        console.log('📝 Add to configuration.yaml:');
+        console.log(`input_text:`);
+        for (const entityId of entityIds) {
+          const name = entityId.replace('input_text.', '').replace(/_/g, ' ');
+          console.log(`  ${entityId.replace('input_text.', '')}:`);
+          console.log(`    name: "${name}"`);
+          console.log(`    max: 10000`);
+        }
+        
+        // Fallback to localStorage
+        localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(state));
+      }
       
     } catch (error) {
-      console.warn('⚠️ Notification save failed:', error);
+      console.warn('⚠️ Timer Card: Failed to save to HA, using localStorage fallback:', error);
+      localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(state));
     }
   }
 
-  async checkHTTPSync() {
+  async createInputTextEntity(entityId) {
     try {
-      if (!this._hass) {
+      console.log('🤖 Auto-creating entity:', entityId);
+      
+      // Try to create the entity using Home Assistant's REST API
+      const entityConfig = {
+        entity_id: entityId,
+        name: `${this.config.title} Timer Data`,
+        max: 10000,
+        initial: '{"timeSlots":[],"timestamp":0}'
+      };
+      
+      // Use the input_text.create service if available (newer HA versions)
+      if (this._hass.services?.input_text?.create) {
+        await this._hass.callService('input_text', 'create', entityConfig);
+        console.log('✅ Entity created successfully:', entityId);
+        return true;
+      }
+      
+      // Try using the config flow API
+      await this.createEntityViaConfigFlow(entityId, entityConfig);
+      return true;
+      
+    } catch (error) {
+      console.warn('⚠️ Auto-creation failed, trying alternative method:', error);
+      return await this.createEntityViaHelpers(entityId);
+    }
+  }
+
+  async createEntityViaConfigFlow(entityId, config) {
+    try {
+      // Use Home Assistant's helper creation API
+      const response = await fetch(`/api/config/input_text`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this._hass.auth.data.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: config.name,
+          max: config.max,
+          initial: config.initial
+        })
+      });
+      
+      if (response.ok) {
+        console.log('✅ Entity created via config API:', entityId);
+        return true;
+      }
+    } catch (error) {
+      console.log('Config API failed:', error);
+    }
+    return false;
+  }
+
+  async createEntityViaHelpers(entityId) {
+    try {
+      // Try using the helpers integration
+      const helperConfig = {
+        domain: 'input_text',
+        name: `${this.config.title} Timer Data`,
+        config: {
+          max: 10000,
+          initial: '{"timeSlots":[],"timestamp":0}'
+        }
+      };
+      
+      await this._hass.callService('helpers', 'create', helperConfig);
+      console.log('✅ Entity created via helpers:', entityId);
+      return true;
+      
+    } catch (error) {
+      console.warn('⚠️ Helpers creation failed:', error);
+      
+      // Last resort: create a temporary entity using automation
+      return await this.createTemporaryEntity(entityId);
+    }
+  }
+
+  async createTemporaryEntity(entityId) {
+    try {
+      // Create a temporary automation that creates the entity
+      const automationConfig = {
+        alias: `Timer Card Auto Setup - ${entityId}`,
+        trigger: {
+          platform: 'homeassistant',
+          event: 'start'
+        },
+        action: [
+          {
+            service: 'input_text.set_value',
+            data: {
+              entity_id: entityId,
+              value: '{"timeSlots":[],"timestamp":0}'
+            }
+          }
+        ]
+      };
+      
+      // This will fail but might trigger entity creation in some setups
+      await this._hass.callService('automation', 'create', automationConfig);
+      
+      // Create a notification as backup
+      await this._hass.callService('persistent_notification', 'create', {
+        title: '🤖 Timer Card Auto-Setup',
+        message: `Auto-setup attempted for ${entityId}. If sync doesn't work, the card will use browser storage as fallback.`,
+        notification_id: `timer_auto_setup_${Date.now()}`
+      });
+      
+      return false;
+    } catch (error) {
+      console.log('All auto-creation methods failed, using fallback');
+      return false;
+    }
+  }
+
+  async saveToEntityAlternative(entityId, stateJson) {
+    try {
+      // Try to use the recorder service to create a state
+      await this._hass.callService('recorder', 'set_state', {
+        entity_id: entityId,
+        state: stateJson
+      });
+      console.log(`✅ State saved via recorder: ${entityId}`);
+      return true;
+    } catch (error) {
+      console.log('Recorder method failed, trying custom state creation');
+      
+      try {
+        // Create a temporary sensor with the data
+        const sensorData = {
+          state: 'active',
+          attributes: {
+            timer_data: stateJson,
+            friendly_name: `${this.config.title} Timer Data`,
+            device_class: 'timestamp'
+          }
+        };
+        
+        // Use the MQTT service if available to create a virtual entity
+        if (this._hass.services?.mqtt?.publish) {
+          await this._hass.callService('mqtt', 'publish', {
+            topic: `homeassistant/sensor/${entityId.replace('input_text.', '')}/state`,
+            payload: JSON.stringify(sensorData),
+            retain: true
+          });
+          console.log(`✅ Data stored via MQTT: ${entityId}`);
+          return true;
+        }
+        
+        // Last resort: store in a global variable accessible by other instances
+        if (!window.timerCardGlobalStorage) {
+          window.timerCardGlobalStorage = {};
+        }
+        window.timerCardGlobalStorage[entityId] = stateJson;
+        console.log(`💾 Data stored in global storage: ${entityId}`);
+        return true;
+        
+      } catch (alternativeError) {
+        console.warn('All alternative save methods failed:', alternativeError);
+        return false;
+      }
+    }
+  }
+
+  loadSavedState() {
+    if (this.config.save_state) {
+      // Try to load from Home Assistant HTTP API first
+      if (this._hass && this.config.save_to_ha !== false) {
+        this.loadFromHAStorage();
+      } else {
+        // Fallback to localStorage
+        this.loadFromLocalStorage();
+      }
+    }
+  }
+
+  async loadFromHAStorage() {
+    try {
+      if (!this._syncKey || !this._hass) {
+        console.log('⚠️ HA not available, using localStorage');
+        this.loadFromLocalStorage();
         return;
       }
       
-      // Check persistent notifications for sync data
+      console.log('🌐 Loading from HA notification...');
+      
+      // Check if notification exists
       const notifications = this._hass.states['persistent_notification.' + this._syncKey];
       if (notifications && notifications.attributes?.message) {
         try {
           const syncData = JSON.parse(notifications.attributes.message);
-          const newStateStr = JSON.stringify(syncData.timeSlots);
-          const currentStateStr = JSON.stringify(this.timeSlots);
           
-          // Only update if data is different and not from this device
-          if (newStateStr !== currentStateStr && 
-              newStateStr !== this._lastKnownState && 
-              newStateStr !== this._lastSentData) {
-            
-            console.log('🔄 Detected notification sync from another device');
-            console.log('📱 Updating from device:', syncData.device);
-            
-            this.timeSlots = syncData.timeSlots;
-            this._lastKnownState = newStateStr;
-            this.updateDisplay();
-            this.controlEntities();
-          }
+          console.log('✅ Loaded data from HA notification');
+          this.timeSlots = syncData.timeSlots || this.timeSlots;
+          this._lastKnownState = JSON.stringify(this.timeSlots);
+          
+          this.updateDisplay();
+          this.controlEntities();
+          return;
         } catch (parseError) {
-          // Ignore parsing errors
+          console.log('⚠️ Failed to parse notification data');
         }
       }
+      
+      console.log('⚠️ No notification found, using localStorage');
+      this.loadFromLocalStorage();
+      
     } catch (error) {
-      // Ignore errors
+      console.warn('⚠️ Failed to load from HA notification:', error);
+      this.loadFromLocalStorage();
+    }
+  }
+
+  loadFromHomeAssistant() {
+    console.log('🔄 LOAD FROM HA DEBUG - Starting...');
+    try {
+      const cardId = this.config.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      console.log('📝 Card ID for loading:', cardId);
+      
+      // Try to load from multiple input_text entities
+      const entityIds = [
+        `input_text.timer_card_${cardId}_data`,
+        `input_text.timer_card_${cardId}_backup`
+      ];
+      
+      console.log('🎯 Looking for entities:', entityIds);
+      console.log('📊 All HA states available:', Object.keys(this._hass.states || {}).length);
+      console.log('🔍 Timer-related entities found:', Object.keys(this._hass.states || {}).filter(e => e.includes('timer')));
+      
+      for (const entityId of entityIds) {
+        try {
+          const entity = this._hass.states[entityId];
+          
+          if (entity && entity.state && entity.state !== 'unknown' && entity.state !== '') {
+            const state = JSON.parse(entity.state);
+            if (state.timeSlots) {
+              this.timeSlots = state.timeSlots;
+              console.log(`✅ Timer Card: State loaded from ${entityId}`);
+              return;
+            }
+          }
+        } catch (error) {
+          console.warn(`⚠️ Failed to load from ${entityId}:`, error);
+        }
+      }
+      
+      console.log('⚠️ Timer Card: No valid data found in Home Assistant entities');
+      
+      // Try global storage as fallback
+      if (window.timerCardGlobalStorage) {
+        for (const entityId of entityIds) {
+          if (window.timerCardGlobalStorage[entityId]) {
+            try {
+              const state = JSON.parse(window.timerCardGlobalStorage[entityId]);
+              if (state.timeSlots) {
+                this.timeSlots = state.timeSlots;
+                console.log(`✅ Timer Card: State loaded from global storage: ${entityId}`);
+                return;
+              }
+            } catch (error) {
+              console.warn(`Failed to parse global storage data for ${entityId}`);
+            }
+          }
+        }
+      }
+      
+    } catch (error) {
+      console.warn('⚠️ Timer Card: Failed to load from HA, trying localStorage:', error);
+    }
+    
+    // Fallback to localStorage
+    this.loadFromLocalStorage();
+  }
+
+  loadFromLocalStorage() {
+      const saved = localStorage.getItem(`timer-24h-${this.config.title}`);
+      if (saved) {
+        try {
+        const state = JSON.parse(saved);
+        // Handle both old and new format
+        if (state.timeSlots) {
+          this.timeSlots = state.timeSlots;
+        } else if (Array.isArray(state)) {
+          this.timeSlots = state; // Old format
+        }
+        console.log('💾 Timer Card: State loaded from localStorage');
+        } catch (e) {
+        console.error('❌ Timer Card: Failed to load saved state:', e);
+      }
     }
   }
 
@@ -429,7 +735,7 @@ class Timer24HCard extends HTMLElement {
     try {
       // Set up notification-based sync checking
       this._syncCheckInterval = setInterval(() => {
-        this.checkNotificationSync();
+        this.checkHTTPSync();
       }, 2000); // Check every 2 seconds
       
       console.log('✅ Notification sync enabled for cross-device synchronization');
@@ -439,7 +745,32 @@ class Timer24HCard extends HTMLElement {
     }
   }
 
-  async checkNotificationSync() {
+  async saveToHAStorage(state) {
+    try {
+      const syncData = {
+        timeSlots: state.timeSlots,
+        timestamp: Date.now(),
+        device: `device_${Date.now() % 10000}`
+      };
+      
+      console.log('🌐 Saving via persistent notification...');
+      
+      // Use persistent notification as storage - simple and reliable
+      await this._hass.callService('persistent_notification', 'create', {
+        notification_id: this._syncKey,
+        title: `Timer Sync ${this.config.title}`,
+        message: JSON.stringify(syncData)
+      });
+      
+      console.log('✅ Saved to HA notification storage');
+      this._lastSentData = JSON.stringify(state.timeSlots);
+      
+    } catch (error) {
+      console.warn('⚠️ Notification save failed:', error);
+    }
+  }
+
+  async checkHTTPSync() {
     try {
       if (!this._hass) {
         return;
