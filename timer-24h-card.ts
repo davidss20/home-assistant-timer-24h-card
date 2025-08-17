@@ -87,6 +87,14 @@ export class Timer24HCard extends LitElement implements LovelaceCard {
   }
 
   public static async getConfigElement() {
+    // Ensure the editor is imported and available
+    if (!customElements.get('timer-24h-card-editor')) {
+      try {
+        await import('./timer-24h-card-editor.js');
+      } catch (e) {
+        console.warn('Could not load timer-24h-card-editor:', e);
+      }
+    }
     return document.createElement('timer-24h-card-editor');
   }
 

@@ -175,14 +175,19 @@ export class Timer24HCardEditor extends LitElement implements LovelaceCardEditor
         <div class="section-title">Additional Settings</div>
         
         <div class="checkbox-container">
-          <ha-checkbox
+          <input
+            type="checkbox"
             id="save-state"
             .checked="${this.config.save_state !== false}"
             @change="${this.handleSaveStateChange}"
-          ></ha-checkbox>
-          <label for="save-state">Save timer settings in browser</label>
+          />
+          <label for="save-state">💾 Save timer settings in browser</label>
         </div>
-        <div class="help-text">If checked, settings will be saved even after refreshing the page or closing the browser</div>
+        <div class="help-text">💡 If checked, your timer settings will be saved even after refreshing the page or closing the browser</div>
+        
+        <div class="config-footer">
+          <p>✨ Your card is ready! The timer will automatically control your selected entities based on your schedule and home presence.</p>
+        </div>
       </div>
     `;
   }
@@ -485,6 +490,22 @@ export class Timer24HCardEditor extends LitElement implements LovelaceCardEditor
         content: "▶";
         color: var(--primary-color);
         font-size: 14px;
+      }
+      
+      .config-footer {
+        margin-top: 24px;
+        padding: 16px;
+        background: linear-gradient(135deg, var(--primary-color-light, rgba(25, 118, 210, 0.1)), var(--accent-color-light, rgba(255, 193, 7, 0.1)));
+        border-radius: 8px;
+        border: 1px solid var(--primary-color-light, rgba(25, 118, 210, 0.2));
+      }
+      
+      .config-footer p {
+        margin: 0;
+        color: var(--primary-text-color);
+        font-size: 14px;
+        text-align: center;
+        font-weight: 500;
       }
     `;
   }
