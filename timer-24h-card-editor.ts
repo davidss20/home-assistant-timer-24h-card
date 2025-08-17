@@ -20,6 +20,7 @@ interface Timer24HCardConfig {
 export class Timer24HCardEditor extends LitElement implements LovelaceCardEditor {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @state() private config!: Timer24HCardConfig;
+  @state() private entityFilter: string = '';
 
   public setConfig(config: Timer24HCardConfig): void {
     this.config = { ...config };
@@ -27,7 +28,10 @@ export class Timer24HCardEditor extends LitElement implements LovelaceCardEditor
 
   protected render(): TemplateResult {
     if (!this.hass) {
-      return html`<div>Loading...</div>`;
+      return html`<div class="loading">
+        <div class="spinner"></div>
+        <p>Loading Home Assistant entities...</p>
+      </div>`;
     }
 
     // Get list of all entities
@@ -38,7 +42,7 @@ export class Timer24HCardEditor extends LitElement implements LovelaceCardEditor
       e.startsWith('person.') || 
       e.startsWith('device_tracker.') ||
       e.startsWith('input_boolean.')
-    );
+    ).sort();
     const controllableEntities = entities.filter(e => 
       e.startsWith('light.') || 
       e.startsWith('switch.') || 
@@ -47,18 +51,24 @@ export class Timer24HCardEditor extends LitElement implements LovelaceCardEditor
       e.startsWith('media_player.') ||
       e.startsWith('cover.') ||
       e.startsWith('input_boolean.')
-    );
+    ).sort();
 
     return html`
       <div class="card-config">
+        <div class="config-header">
+          <h2>🕐 Timer 24H Card Configuration</h2>
+          <p>Configure your 24-hour timer with automatic entity control</p>
+        </div>
+
         <div class="config-row">
           <label for="title">Card Title</label>
-          <ha-textfield
+          <input
+            type="text"
             id="title"
             .value="${this.config.title || '24 Hour Timer'}"
-            .placeholder="${'Enter card title'}"
+            placeholder="Enter card title"
             @input="${this.handleTitleChange}"
-          ></ha-textfield>
+          />
           <div class="help-text">The title displayed at the top of the card</div>
         </div>
         
@@ -67,60 +77,99 @@ export class Timer24HCardEditor extends LitElement implements LovelaceCardEditor
         <div class="config-row">
           <label>Sensors for home presence detection</label>
           <div class="entity-list" id="sensor-list">
-            ${sensors.map(entityId => {
+            ${sensors.length > 0 ? sensors.map(entityId => {
               const entity = this.hass.states[entityId];
               const isChecked = (this.config.home_sensors || []).includes(entityId);
+              const friendlyName = entity?.attributes?.friendly_name || entityId;
+              const domain = entityId.split('.')[0];
+              const icon = this.getEntityIcon(domain);
+              
               return html`
-                <div class="entity-item">
-                  <ha-checkbox
+                <div class="entity-item ${isChecked ? 'selected' : ''}">
+                  <input
+                    type="checkbox"
                     .checked="${isChecked}"
                     .entityId="${entityId}"
                     @change="${this.handleSensorChange}"
-                  ></ha-checkbox>
-                  <label>${entityId}</label>
-                  <span class="entity-state">${entity?.state || 'unavailable'}</span>
+                  />
+                  <div class="entity-info">
+                    <span class="entity-icon">${icon}</span>
+                    <div class="entity-details">
+                      <span class="entity-name">${friendlyName}</span>
+                      <span class="entity-id">${entityId}</span>
+                    </div>
+                  </div>
+                  <span class="entity-state ${entity?.state === 'on' || entity?.state === 'home' ? 'active' : ''}">${entity?.state || 'unavailable'}</span>
                 </div>
               `;
-            })}
+            }) : html`<div class="no-entities">No suitable sensors found</div>`}
           </div>
-          <div class="help-text">Select sensors that indicate when you are at home</div>
+          <div class="help-text">💡 Select sensors that indicate when you are at home (person, device_tracker, binary_sensor, etc.)</div>
         </div>
         
         <div class="config-row">
           <label for="home-logic">Home detection logic</label>
-          <ha-select
+          <select
             id="home-logic"
             .value="${this.config.home_logic || 'OR'}"
-            @selected="${this.handleLogicChange}"
+            @change="${this.handleLogicChange}"
           >
-            <mwc-list-item value="OR">OR - At least one sensor must be active</mwc-list-item>
-            <mwc-list-item value="AND">AND - All sensors must be active</mwc-list-item>
-          </ha-select>
-          <div class="help-text">How to determine if you are at home based on the selected sensors</div>
+            <option value="OR" ?selected="${this.config.home_logic === 'OR' || !this.config.home_logic}">
+              🔀 OR - At least one sensor must be active
+            </option>
+            <option value="AND" ?selected="${this.config.home_logic === 'AND'}">
+              🔗 AND - All sensors must be active
+            </option>
+          </select>
+          <div class="help-text">🤔 How to determine if you are at home based on the selected sensors</div>
         </div>
         
         <div class="section-title">Entity Control</div>
         
         <div class="config-row">
           <label>Entities to control based on timer</label>
+          <div class="entity-search">
+            <input
+              type="text"
+              id="entity-filter"
+              placeholder="🔍 Search entities..."
+              @input="${this.handleEntityFilter}"
+            />
+          </div>
           <div class="entity-list" id="entity-list">
-            ${controllableEntities.map(entityId => {
+            ${controllableEntities.length > 0 ? controllableEntities
+              .filter(entityId => !this.entityFilter || 
+                entityId.toLowerCase().includes(this.entityFilter.toLowerCase()) ||
+                (this.hass.states[entityId]?.attributes?.friendly_name || '').toLowerCase().includes(this.entityFilter.toLowerCase())
+              )
+              .map(entityId => {
               const entity = this.hass.states[entityId];
               const isChecked = (this.config.entities || []).includes(entityId);
+              const friendlyName = entity?.attributes?.friendly_name || entityId;
+              const domain = entityId.split('.')[0];
+              const icon = this.getEntityIcon(domain);
+              
               return html`
-                <div class="entity-item">
-                  <ha-checkbox
+                <div class="entity-item ${isChecked ? 'selected' : ''}">
+                  <input
+                    type="checkbox"
                     .checked="${isChecked}"
                     .entityId="${entityId}"
                     @change="${this.handleEntityChange}"
-                  ></ha-checkbox>
-                  <label>${entityId}</label>
-                  <span class="entity-state">${entity?.state || 'unavailable'}</span>
+                  />
+                  <div class="entity-info">
+                    <span class="entity-icon">${icon}</span>
+                    <div class="entity-details">
+                      <span class="entity-name">${friendlyName}</span>
+                      <span class="entity-id">${entityId}</span>
+                    </div>
+                  </div>
+                  <span class="entity-state ${entity?.state === 'on' ? 'active' : ''}">${entity?.state || 'unavailable'}</span>
                 </div>
               `;
-            })}
+            }) : html`<div class="no-entities">No controllable entities found</div>`}
           </div>
-          <div class="help-text">Select entities that will be automatically turned on/off according to the schedule</div>
+          <div class="help-text">⚡ Select entities that will be automatically turned on/off according to the schedule</div>
         </div>
         
         <div class="section-title">Additional Settings</div>
@@ -144,8 +193,32 @@ export class Timer24HCardEditor extends LitElement implements LovelaceCardEditor
     this.configChanged();
   }
 
-  private handleLogicChange(ev: CustomEvent): void {
-    const value = ev.detail.value as 'OR' | 'AND';
+  private handleEntityFilter(ev: Event): void {
+    const target = ev.target as HTMLInputElement;
+    this.entityFilter = target.value;
+  }
+
+  private getEntityIcon(domain: string): string {
+    const icons: Record<string, string> = {
+      'person': '👤',
+      'device_tracker': '📱',
+      'binary_sensor': '🔘',
+      'sensor': '📊',
+      'input_boolean': '🔘',
+      'light': '💡',
+      'switch': '🔌',
+      'fan': '🌀',
+      'climate': '🌡️',
+      'media_player': '📺',
+      'cover': '🪟',
+      'default': '⚙️'
+    };
+    return icons[domain] || icons.default;
+  }
+
+  private handleLogicChange(ev: Event): void {
+    const target = ev.target as HTMLSelectElement;
+    const value = target.value as 'OR' | 'AND';
     this.config = { ...this.config, home_logic: value };
     this.configChanged();
   }
@@ -202,80 +275,216 @@ export class Timer24HCardEditor extends LitElement implements LovelaceCardEditor
       .card-config {
         display: flex;
         flex-direction: column;
+        gap: 20px;
+        padding: 20px;
+        background: var(--card-background-color);
+        border-radius: 8px;
+        max-width: 600px;
+        margin: 0 auto;
+      }
+      
+      .config-header {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+      
+      .config-header h2 {
+        margin: 0 0 8px 0;
+        color: var(--primary-text-color);
+        font-size: 24px;
+      }
+      
+      .config-header p {
+        margin: 0;
+        color: var(--secondary-text-color);
+        font-size: 14px;
+      }
+      
+      .loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px;
         gap: 16px;
-        padding: 16px;
+      }
+      
+      .spinner {
+        width: 32px;
+        height: 32px;
+        border: 3px solid var(--divider-color);
+        border-top: 3px solid var(--primary-color);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
       }
       
       .config-row {
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 12px;
       }
       
       label {
-        font-weight: bold;
+        font-weight: 600;
         color: var(--primary-text-color);
-        font-size: 14px;
+        font-size: 16px;
       }
       
-      ha-textfield, ha-select {
-        width: 100%;
+      input[type="text"], select {
+        padding: 12px 16px;
+        border: 2px solid var(--divider-color);
+        border-radius: 8px;
+        background: var(--card-background-color);
+        color: var(--primary-text-color);
+        font-size: 14px;
+        transition: border-color 0.2s;
+      }
+      
+      input[type="text"]:focus, select:focus {
+        outline: none;
+        border-color: var(--primary-color);
+      }
+      
+      .entity-search {
+        margin-bottom: 12px;
       }
       
       .entity-list {
-        max-height: 200px;
+        max-height: 300px;
         overflow-y: auto;
-        border: 1px solid var(--divider-color);
-        border-radius: 4px;
-        padding: 8px;
+        border: 2px solid var(--divider-color);
+        border-radius: 8px;
         background: var(--card-background-color);
       }
       
       .entity-item {
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding: 6px 0;
+        gap: 12px;
+        padding: 12px 16px;
         border-bottom: 1px solid var(--divider-color);
+        transition: background-color 0.2s;
+        cursor: pointer;
+      }
+      
+      .entity-item:hover {
+        background: var(--secondary-background-color, rgba(0,0,0,0.05));
+      }
+      
+      .entity-item.selected {
+        background: var(--primary-color-light, rgba(25, 118, 210, 0.1));
+        border-left: 4px solid var(--primary-color);
       }
       
       .entity-item:last-child {
         border-bottom: none;
       }
       
-      .entity-item label {
-        flex-grow: 1;
-        font-weight: normal;
-        cursor: pointer;
+      .entity-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex: 1;
+      }
+      
+      .entity-icon {
+        font-size: 20px;
+        width: 24px;
+        text-align: center;
+      }
+      
+      .entity-details {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      
+      .entity-name {
+        font-weight: 500;
+        color: var(--primary-text-color);
+        font-size: 14px;
+      }
+      
+      .entity-id {
+        font-size: 12px;
+        color: var(--secondary-text-color);
+        font-family: monospace;
       }
       
       .entity-state {
         font-size: 12px;
+        font-weight: 500;
+        padding: 4px 8px;
+        border-radius: 12px;
+        background: var(--divider-color);
+        color: var(--secondary-text-color);
+      }
+      
+      .entity-state.active {
+        background: var(--success-color, #4caf50);
+        color: white;
+      }
+      
+      .no-entities {
+        padding: 20px;
+        text-align: center;
         color: var(--secondary-text-color);
         font-style: italic;
       }
       
       .help-text {
-        font-size: 12px;
+        font-size: 13px;
         color: var(--secondary-text-color);
-        font-style: italic;
-        margin-top: 4px;
+        line-height: 1.4;
+        margin-top: 8px;
+        padding: 8px 12px;
+        background: var(--secondary-background-color, rgba(0,0,0,0.05));
+        border-radius: 6px;
+        border-left: 3px solid var(--primary-color);
       }
       
       .checkbox-container {
         display: flex;
         align-items: center;
-        gap: 8px;
-        margin: 8px 0;
+        gap: 12px;
+        padding: 16px;
+        background: var(--secondary-background-color, rgba(0,0,0,0.05));
+        border-radius: 8px;
+      }
+      
+      .checkbox-container input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        margin: 0;
+      }
+      
+      .checkbox-container label {
+        font-weight: normal;
+        font-size: 14px;
+        cursor: pointer;
       }
       
       .section-title {
-        font-size: 16px;
-        font-weight: bold;
+        font-size: 18px;
+        font-weight: 600;
         color: var(--primary-text-color);
-        margin: 16px 0 8px 0;
-        border-bottom: 1px solid var(--divider-color);
-        padding-bottom: 4px;
+        margin: 24px 0 16px 0;
+        padding: 0 0 8px 0;
+        border-bottom: 2px solid var(--primary-color);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      
+      .section-title::before {
+        content: "▶";
+        color: var(--primary-color);
+        font-size: 14px;
       }
     `;
   }
