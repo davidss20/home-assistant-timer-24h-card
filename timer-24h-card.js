@@ -344,7 +344,8 @@ class Timer24HCard extends HTMLElement {
           background: var(--card-background-color, white);
           border-radius: var(--ha-card-border-radius, 12px);
           box-shadow: var(--ha-card-box-shadow, 0 2px 8px rgba(0,0,0,0.1));
-          padding: 8px;
+          padding: 0;
+          overflow: hidden;
         }
         
         .header {
@@ -352,6 +353,7 @@ class Timer24HCard extends HTMLElement {
           justify-content: space-between;
           align-items: center;
           margin-bottom: 8px;
+          padding: 8px 12px 0 12px;
         }
         
         .title {
@@ -385,8 +387,8 @@ class Timer24HCard extends HTMLElement {
         .timer-svg {
           width: 100%;
           height: auto;
-          max-width: 500px;
           aspect-ratio: 1;
+          display: block;
         }
         
         .sector {
