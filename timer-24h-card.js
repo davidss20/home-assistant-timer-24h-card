@@ -42,10 +42,10 @@ class Timer24HCard extends HTMLElement {
   }
 
   set hass(hass) {
-    this._hass = hass;
-    if (hass) {
+    if (hass && hass.states) {
       try {
         const oldSensorStatus = this.checkSensorStatus();
+        this._hass = hass;
         this.checkHomeStatus();
         
         // Update display and control when sensor status changes
@@ -59,6 +59,8 @@ class Timer24HCard extends HTMLElement {
       } catch (error) {
         console.error('Timer Card: Error in hass setter:', error);
       }
+    } else {
+      this._hass = hass;
     }
   }
 
@@ -302,6 +304,11 @@ class Timer24HCard extends HTMLElement {
   }
 
   checkSensorStatus() {
+    // Safety check: ensure hass is available
+    if (!this._hass || !this._hass.states) {
+      return false; // No hass available, be conservative
+    }
+
     if (!this.config.home_sensors || this.config.home_sensors.length === 0) {
       return true; // No sensors configured, assume allowed
     }
@@ -334,7 +341,11 @@ class Timer24HCard extends HTMLElement {
       case 'will-activate':
         return '🟢 WILL TURN ON';
       case 'will-not-activate':
-        // More detailed reason
+        // More detailed reason - with safety checks
+        if (!this.currentTime) {
+          return '🔴 NOT READY';
+        }
+        
         const currentHour = this.currentTime.getHours();
         const currentMinute = this.currentTime.getMinutes();
         const halfHour = currentMinute >= 30 ? 30 : 0;
@@ -364,12 +375,18 @@ class Timer24HCard extends HTMLElement {
       return;
     }
 
-    // Update automation status
+    // Update automation status - with safety checks
     const automationStatus = shadowRoot.querySelector('#automation-status');
     if (automationStatus) {
-      const status = this.getAutomationStatus();
-      automationStatus.textContent = this.getAutomationStatusText();
-      automationStatus.className = `automation-status ${status}`;
+      try {
+        const status = this.getAutomationStatus();
+        automationStatus.textContent = this.getAutomationStatusText();
+        automationStatus.className = `automation-status ${status}`;
+      } catch (error) {
+        console.error('Timer Card: Error updating display:', error);
+        automationStatus.textContent = '❓ ERROR';
+        automationStatus.className = 'automation-status no-entities';
+      }
     }
 
 
