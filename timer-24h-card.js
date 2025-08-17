@@ -325,9 +325,9 @@ class Timer24HCard extends HTMLElement {
       localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(state));
       console.log('✅ State saved to localStorage');
       
-      // Send sync data to other devices via input_text entity
+      // Send sync data to other devices via HTTP API
       if (this._hass && this.config.save_to_ha !== false) {
-        this.updateSyncEntity(state);
+        this.saveToHAStorage(state);
       }
       
       // Update our known state to prevent sync loops
@@ -583,13 +583,53 @@ class Timer24HCard extends HTMLElement {
 
   loadSavedState() {
     if (this.config.save_state) {
-      // Try to load from Home Assistant first
+      // Try to load from Home Assistant HTTP API first
       if (this._hass && this.config.save_to_ha !== false) {
-        this.loadFromHomeAssistant();
+        this.loadFromHAStorage();
       } else {
         // Fallback to localStorage
         this.loadFromLocalStorage();
       }
+    }
+  }
+
+  async loadFromHAStorage() {
+    try {
+      if (!this._syncKey || !this._hass?.auth?.accessToken) {
+        console.log('⚠️ HA HTTP API not available, using localStorage');
+        this.loadFromLocalStorage();
+        return;
+      }
+      
+      console.log('🌐 Loading from HA via HTTP API...');
+      
+      const response = await fetch(`${this._hass.hassUrl}/api/states/sensor.${this._syncKey}`, {
+        headers: {
+          'Authorization': `Bearer ${this._hass.auth.accessToken}`
+        }
+      });
+      
+      if (response.ok) {
+        const entityData = await response.json();
+        if (entityData.attributes?.timer_data) {
+          const syncData = JSON.parse(entityData.attributes.timer_data);
+          
+          console.log('✅ Loaded data from HA storage');
+          this.timeSlots = syncData.timeSlots || this.timeSlots;
+          this._lastKnownState = JSON.stringify(this.timeSlots);
+          
+          this.updateDisplay();
+          this.controlEntities();
+          return;
+        }
+      }
+      
+      console.log('⚠️ No data found in HA storage, using localStorage');
+      this.loadFromLocalStorage();
+      
+    } catch (error) {
+      console.warn('⚠️ Failed to load from HA storage:', error);
+      this.loadFromLocalStorage();
     }
   }
 
@@ -681,232 +721,112 @@ class Timer24HCard extends HTMLElement {
     
     const cardId = this.config.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
     this._lastKnownState = JSON.stringify(this.timeSlots);
+    this._syncKey = `timer_24h_${cardId}`;
     
     // Always set up localStorage sync (works immediately)
     this.setupLocalStorageSync();
     
-    // Set up input_text entity sync for cross-device synchronization
-    this.setupEntitySync(cardId);
+    // Set up HTTP-based sync for cross-device synchronization
+    this.setupHTTPSync();
     
     console.log('🔄 Real-time sync enabled for', cardId);
   }
 
-  setupEntitySync(cardId) {
+  setupHTTPSync() {
     if (!this._hass) {
       console.log('⚠️ HASS not available, using localStorage only');
       return;
     }
 
     try {
-      // Create a simple sync entity that all devices can monitor
-      const syncEntityId = `input_text.timer_sync_${cardId}`;
-      this._syncEntityId = syncEntityId;
-      
-      // Try to create the sync entity
-      this.createSyncEntity(syncEntityId);
-      
-      // Monitor the sync entity for changes
+      // Set up HTTP-based sync checking
       this._syncCheckInterval = setInterval(() => {
-        this.checkSyncEntity(syncEntityId);
+        this.checkHTTPSync();
       }, 3000); // Check every 3 seconds
       
-      console.log('✅ Entity sync enabled for cross-device synchronization');
-      console.log('🔍 Monitoring sync entity:', syncEntityId);
+      console.log('✅ HTTP sync enabled for cross-device synchronization');
+      console.log('🔍 Sync key:', this._syncKey);
     } catch (error) {
-      console.warn('⚠️ Could not set up entity sync:', error);
+      console.warn('⚠️ Could not set up HTTP sync:', error);
     }
   }
 
-  async createSyncEntity(entityId) {
+  async saveToHAStorage(state) {
     try {
-      // Check if entity already exists
-      if (this._hass.states[entityId]) {
-        console.log('✅ Sync entity already exists:', entityId);
-        return true;
-      }
-      
-      console.log('🔧 Auto-creating sync entity:', entityId);
-      
-      // Try multiple methods to create the entity automatically
-      const methods = [
-        // Method 1: Try using input_text.create service (newer HA versions)
-        async () => {
-          if (this._hass.services?.input_text?.create) {
-            await this._hass.callService('input_text', 'create', {
-              entity_id: entityId.replace('input_text.', ''),
-              name: `Timer Sync ${this.config.title}`,
-              max: 10000,
-              initial: JSON.stringify({
-                timeSlots: this.timeSlots,
-                timestamp: Date.now(),
-                device: 'auto_created'
-              })
-            });
-            return true;
-          }
-          return false;
-        },
-        
-        // Method 2: Try using helpers.create service
-        async () => {
-          if (this._hass.services?.helpers?.create) {
-            await this._hass.callService('helpers', 'create', {
-              domain: 'input_text',
-              entity_id: entityId.replace('input_text.', ''),
-              name: `Timer Sync ${this.config.title}`,
-              config: {
-                max: 10000,
-                initial: JSON.stringify({
-                  timeSlots: this.timeSlots,
-                  timestamp: Date.now(),
-                  device: 'auto_created'
-                })
-              }
-            });
-            return true;
-          }
-          return false;
-        },
-        
-        // Method 3: Force create by setting value (will auto-create in many cases)
-        async () => {
-          await this._hass.callService('input_text', 'set_value', {
-            entity_id: entityId,
-            value: JSON.stringify({
-              timeSlots: this.timeSlots,
-              timestamp: Date.now(),
-              device: 'auto_created'
-            })
-          });
-          
-          // Wait a bit and check if it was created
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return !!this._hass.states[entityId];
-        }
-      ];
-      
-      // Try each method until one succeeds
-      for (const method of methods) {
-        try {
-          const success = await method();
-          if (success) {
-            console.log('✅ Sync entity created successfully:', entityId);
-            return true;
-          }
-        } catch (error) {
-          console.log('⚠️ Creation method failed, trying next...', error.message);
-        }
-      }
-      
-      // If all methods failed, create a virtual entity using custom event
-      console.log('🔄 Creating virtual sync entity using events...');
-      this._virtualEntity = {
-        entityId: entityId,
-        state: JSON.stringify({
-          timeSlots: this.timeSlots,
-          timestamp: Date.now(),
-          device: 'virtual'
-        }),
-        lastUpdated: Date.now()
-      };
-      
-      console.log('✅ Virtual sync entity created:', entityId);
-      return true;
-      
-    } catch (error) {
-      console.warn('⚠️ All entity creation methods failed:', error);
-      return false;
-    }
-  }
-
-  updateSyncEntity(state) {
-    try {
-      if (!this._syncEntityId) {
-        console.log('⚠️ Sync entity not initialized');
-        return;
-      }
-      
-      // Prepare sync data
       const syncData = {
         timeSlots: state.timeSlots,
-        timestamp: state.timestamp,
-        device: `device_${Date.now() % 10000}` // Simple device identifier
+        timestamp: Date.now(),
+        device: `device_${Date.now() % 10000}`
       };
       
-      const syncDataString = JSON.stringify(syncData);
+      console.log('🌐 Saving to HA via HTTP API...');
       
-      // Try to update real entity first
-      if (this._hass.states[this._syncEntityId]) {
-        this._hass.callService('input_text', 'set_value', {
-          entity_id: this._syncEntityId,
-          value: syncDataString
-        });
-        console.log('📡 Updated real sync entity for cross-device sync');
-      } else if (this._virtualEntity) {
-        // Update virtual entity
-        this._virtualEntity.state = syncDataString;
-        this._virtualEntity.lastUpdated = Date.now();
-        
-        // Broadcast to other instances via custom event
-        window.dispatchEvent(new CustomEvent('timer-sync-update', {
-          detail: {
-            entityId: this._syncEntityId,
-            state: syncDataString,
-            timestamp: Date.now()
+      // Use HA's REST API to store data
+      const response = await fetch(`${this._hass.hassUrl}/api/states/sensor.${this._syncKey}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this._hass.auth.accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          state: 'synced',
+          attributes: {
+            timer_data: JSON.stringify(syncData),
+            last_updated: new Date().toISOString(),
+            friendly_name: `Timer Sync ${this.config.title}`
           }
-        }));
-        console.log('📡 Updated virtual sync entity for cross-device sync');
+        })
+      });
+      
+      if (response.ok) {
+        console.log('✅ Successfully saved to HA storage');
+        this._lastSentData = JSON.stringify(state.timeSlots);
       } else {
-        // Try to create entity again
-        this.createSyncEntity(this._syncEntityId);
-        return;
+        console.warn('⚠️ Failed to save to HA storage:', response.status);
       }
       
-      console.log('🔍 Entity:', this._syncEntityId);
-      
-      // Remember what we sent to avoid sync loops
-      this._lastSentData = JSON.stringify(state.timeSlots);
-      
     } catch (error) {
-      console.warn('⚠️ Failed to update sync entity:', error);
-      // Try to recreate entity
-      this.createSyncEntity(this._syncEntityId);
+      console.warn('⚠️ HTTP save failed:', error);
     }
   }
 
-  checkSyncEntity(entityId) {
+  async checkHTTPSync() {
     try {
-      let syncData = null;
-      
-      // Check real entity first
-      const entity = this._hass.states[entityId];
-      if (entity) {
-        syncData = JSON.parse(entity.state);
-      } else if (this._virtualEntity && this._virtualEntity.entityId === entityId) {
-        // Check virtual entity
-        syncData = JSON.parse(this._virtualEntity.state);
-      } else {
-        return; // No entity found
+      if (!this._hass || !this._hass.auth?.accessToken) {
+        return;
       }
       
-      const newStateStr = JSON.stringify(syncData.timeSlots);
-      const currentStateStr = JSON.stringify(this.timeSlots);
+      // Check HA's REST API for updates
+      const response = await fetch(`${this._hass.hassUrl}/api/states/sensor.${this._syncKey}`, {
+        headers: {
+          'Authorization': `Bearer ${this._hass.auth.accessToken}`
+        }
+      });
       
-      // Only update if data is different and not from this device
-      if (newStateStr !== currentStateStr && 
-          newStateStr !== this._lastKnownState && 
-          newStateStr !== this._lastSentData) {
-        
-        console.log('🔄 Detected sync from another device');
-        console.log('📱 Updating from device:', syncData.device);
-        
-        this.timeSlots = syncData.timeSlots;
-        this._lastKnownState = newStateStr;
-        this.updateDisplay();
-        this.controlEntities();
+      if (response.ok) {
+        const entityData = await response.json();
+        if (entityData.attributes?.timer_data) {
+          const syncData = JSON.parse(entityData.attributes.timer_data);
+          const newStateStr = JSON.stringify(syncData.timeSlots);
+          const currentStateStr = JSON.stringify(this.timeSlots);
+          
+          // Only update if data is different and not from this device
+          if (newStateStr !== currentStateStr && 
+              newStateStr !== this._lastKnownState && 
+              newStateStr !== this._lastSentData) {
+            
+            console.log('🔄 Detected HTTP sync from another device');
+            console.log('📱 Updating from device:', syncData.device);
+            
+            this.timeSlots = syncData.timeSlots;
+            this._lastKnownState = newStateStr;
+            this.updateDisplay();
+            this.controlEntities();
+          }
+        }
       }
     } catch (error) {
-      // Ignore parsing errors - entity might not be ready yet
+      // Ignore errors - network issues, etc.
     }
   }
 
@@ -937,37 +857,7 @@ class Timer24HCard extends HTMLElement {
       }
     });
     
-    // Listen for virtual entity sync events
-    window.addEventListener('timer-sync-update', (event) => {
-      const cardId = this.config.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
-      const expectedEntityId = `input_text.timer_sync_${cardId}`;
-      
-      if (event.detail.entityId === expectedEntityId) {
-        try {
-          const syncData = JSON.parse(event.detail.state);
-          const newStateStr = JSON.stringify(syncData.timeSlots);
-          const currentStateStr = JSON.stringify(this.timeSlots);
-          
-          if (newStateStr !== currentStateStr && 
-              newStateStr !== this._lastKnownState && 
-              newStateStr !== this._lastSentData) {
-            
-            console.log('🔄 Detected virtual sync from another device');
-            console.log('📱 Updating from device:', syncData.device);
-            
-            this.timeSlots = syncData.timeSlots;
-            this._lastKnownState = newStateStr;
-            this.updateDisplay();
-            this.controlEntities();
-          }
-        } catch (error) {
-          console.warn('Failed to parse virtual sync data:', error);
-        }
-      }
-    });
-    
     console.log('💾 localStorage sync enabled for cross-tab synchronization');
-    console.log('📡 Virtual entity sync enabled for cross-device synchronization');
   }
 
   checkForEntityChanges() {
@@ -1041,9 +931,6 @@ class Timer24HCard extends HTMLElement {
     }
     if (this._syncCheckInterval) {
       clearInterval(this._syncCheckInterval);
-    }
-    if (this._hass?.connection && this._syncListener) {
-      this._hass.connection.removeEventListener('timer_card_data_saved', this._syncListener);
     }
     super.disconnectedCallback?.();
   }
