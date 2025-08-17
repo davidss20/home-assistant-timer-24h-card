@@ -7,7 +7,11 @@ class Timer24HCardEditor extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (this._hass) {
-      this.render();
+      try {
+        this.render();
+      } catch (error) {
+        console.error('Timer Card Editor: Error in hass setter:', error);
+      }
     }
   }
 
@@ -221,22 +225,31 @@ class Timer24HCardEditor extends HTMLElement {
 
   addEventListeners() {
     // Title
-    this.querySelector('#title').addEventListener('input', (e) => {
-      this.config = { ...this.config, title: e.target.value };
-      this.configChanged(this.config);
-    });
+    const titleElement = this.querySelector('#title');
+    if (titleElement) {
+      titleElement.addEventListener('input', (e) => {
+        this.config = { ...this.config, title: e.target.value };
+        this.configChanged(this.config);
+      });
+    }
 
     // Home logic
-    this.querySelector('#home-logic').addEventListener('change', (e) => {
-      this.config = { ...this.config, home_logic: e.target.value };
-      this.configChanged(this.config);
-    });
+    const homeLogicElement = this.querySelector('#home-logic');
+    if (homeLogicElement) {
+      homeLogicElement.addEventListener('change', (e) => {
+        this.config = { ...this.config, home_logic: e.target.value };
+        this.configChanged(this.config);
+      });
+    }
 
     // Save state
-    this.querySelector('#save-state').addEventListener('change', (e) => {
-      this.config = { ...this.config, save_state: e.target.checked };
-      this.configChanged(this.config);
-    });
+    const saveStateElement = this.querySelector('#save-state');
+    if (saveStateElement) {
+      saveStateElement.addEventListener('change', (e) => {
+        this.config = { ...this.config, save_state: e.target.checked };
+        this.configChanged(this.config);
+      });
+    }
 
     // Sensors
     this.querySelectorAll('#sensor-list input[type="checkbox"]').forEach(checkbox => {

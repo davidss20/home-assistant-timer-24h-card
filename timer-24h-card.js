@@ -5,6 +5,7 @@ class Timer24HCard extends HTMLElement {
     this.timeSlots = this.initializeTimeSlots();
     this.currentTime = new Date();
     this.isAtHome = false;
+    this.lastControlledStates = new Map(); // Track last sent commands
   }
 
   initializeTimeSlots() {
@@ -41,9 +42,15 @@ class Timer24HCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    this.checkHomeStatus();
-    this.updateCurrentTime();
-    this.controlEntities();
+    if (hass) {
+      try {
+        this.checkHomeStatus();
+        this.updateCurrentTime();
+        this.controlEntities();
+      } catch (error) {
+        console.error('Timer Card: Error in hass setter:', error);
+      }
+    }
   }
 
   get hass() {
@@ -127,11 +134,34 @@ class Timer24HCard extends HTMLElement {
       if (!entity) continue;
       
       const currentState = entity.state === 'on';
+      const lastControlledState = this.lastControlledStates.get(entityId);
       
-      if (currentState !== shouldBeOn) {
-        this._hass.callService('homeassistant', shouldBeOn ? 'turn_on' : 'turn_off', {
-          entity_id: entityId
-        });
+      // Only send command if:
+      // 1. Current state is different from desired state
+      // 2. We haven't already sent this command (to prevent infinite loops)
+      if (currentState !== shouldBeOn && lastControlledState !== shouldBeOn) {
+        console.log(`Timer Card Debug - Sending command to ${entityId}: ${shouldBeOn ? 'ON' : 'OFF'} (current: ${currentState}, last sent: ${lastControlledState})`);
+        try {
+          this._hass.callService('homeassistant', shouldBeOn ? 'turn_on' : 'turn_off', {
+            entity_id: entityId
+          });
+          console.log(`Timer Card: ${shouldBeOn ? 'Turned on' : 'Turned off'} ${entityId}`);
+          
+          // Remember what command we sent
+          this.lastControlledStates.set(entityId, shouldBeOn);
+          
+          // Clear the memory after some time to allow re-control if needed
+          setTimeout(() => {
+            if (this.lastControlledStates.get(entityId) === shouldBeOn) {
+              this.lastControlledStates.delete(entityId);
+            }
+          }, 30000); // Clear after 30 seconds
+          
+        } catch (error) {
+          console.error(`Timer Card: Failed to control ${entityId}:`, error);
+        }
+      } else {
+        console.log(`Timer Card Debug - Skipping ${entityId}: current=${currentState}, desired=${shouldBeOn}, lastSent=${lastControlledState}`);
       }
     }
   }
@@ -142,6 +172,10 @@ class Timer24HCard extends HTMLElement {
       slot.isActive = !slot.isActive;
       this.saveState();
       this.updateDisplay();
+      
+      // Clear the control memory when manually changing settings
+      this.lastControlledStates.clear();
+      
       this.controlEntities();
     }
   }
@@ -226,6 +260,12 @@ class Timer24HCard extends HTMLElement {
   updateDisplay() {
     const shadowRoot = this.shadowRoot;
     if (!shadowRoot) return;
+    
+    // Wait for DOM to be ready
+    if (!shadowRoot.querySelector('#current-time')) {
+      setTimeout(() => this.updateDisplay(), 100);
+      return;
+    }
 
     // Update current time
     const timeDisplay = shadowRoot.querySelector('#current-time');
@@ -276,6 +316,12 @@ class Timer24HCard extends HTMLElement {
   updateSectors() {
     const shadowRoot = this.shadowRoot;
     if (!shadowRoot) return;
+    
+    // Wait for DOM to be ready
+    if (!shadowRoot.querySelector('#outer-sector-0')) {
+      setTimeout(() => this.updateSectors(), 100);
+      return;
+    }
 
     // Update outer sectors
     for (let hour = 0; hour < 24; hour++) {
