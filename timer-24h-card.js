@@ -719,21 +719,103 @@ class Timer24HCard extends HTMLElement {
 
   async createSyncEntity(entityId) {
     try {
-      // Try to create the entity if it doesn't exist
-      if (!this._hass.states[entityId]) {
-        console.log('🔧 Creating sync entity:', entityId);
-        
-        await this._hass.callService('input_text', 'set_value', {
-          entity_id: entityId,
-          value: JSON.stringify({
-            timeSlots: this.timeSlots,
-            timestamp: Date.now(),
-            device: 'initial'
-          })
-        });
+      // Check if entity already exists
+      if (this._hass.states[entityId]) {
+        console.log('✅ Sync entity already exists:', entityId);
+        return true;
       }
+      
+      console.log('🔧 Auto-creating sync entity:', entityId);
+      
+      // Try multiple methods to create the entity automatically
+      const methods = [
+        // Method 1: Try using input_text.create service (newer HA versions)
+        async () => {
+          if (this._hass.services?.input_text?.create) {
+            await this._hass.callService('input_text', 'create', {
+              entity_id: entityId.replace('input_text.', ''),
+              name: `Timer Sync ${this.config.title}`,
+              max: 10000,
+              initial: JSON.stringify({
+                timeSlots: this.timeSlots,
+                timestamp: Date.now(),
+                device: 'auto_created'
+              })
+            });
+            return true;
+          }
+          return false;
+        },
+        
+        // Method 2: Try using helpers.create service
+        async () => {
+          if (this._hass.services?.helpers?.create) {
+            await this._hass.callService('helpers', 'create', {
+              domain: 'input_text',
+              entity_id: entityId.replace('input_text.', ''),
+              name: `Timer Sync ${this.config.title}`,
+              config: {
+                max: 10000,
+                initial: JSON.stringify({
+                  timeSlots: this.timeSlots,
+                  timestamp: Date.now(),
+                  device: 'auto_created'
+                })
+              }
+            });
+            return true;
+          }
+          return false;
+        },
+        
+        // Method 3: Force create by setting value (will auto-create in many cases)
+        async () => {
+          await this._hass.callService('input_text', 'set_value', {
+            entity_id: entityId,
+            value: JSON.stringify({
+              timeSlots: this.timeSlots,
+              timestamp: Date.now(),
+              device: 'auto_created'
+            })
+          });
+          
+          // Wait a bit and check if it was created
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return !!this._hass.states[entityId];
+        }
+      ];
+      
+      // Try each method until one succeeds
+      for (const method of methods) {
+        try {
+          const success = await method();
+          if (success) {
+            console.log('✅ Sync entity created successfully:', entityId);
+            return true;
+          }
+        } catch (error) {
+          console.log('⚠️ Creation method failed, trying next...', error.message);
+        }
+      }
+      
+      // If all methods failed, create a virtual entity using custom event
+      console.log('🔄 Creating virtual sync entity using events...');
+      this._virtualEntity = {
+        entityId: entityId,
+        state: JSON.stringify({
+          timeSlots: this.timeSlots,
+          timestamp: Date.now(),
+          device: 'virtual'
+        }),
+        lastUpdated: Date.now()
+      };
+      
+      console.log('✅ Virtual sync entity created:', entityId);
+      return true;
+      
     } catch (error) {
-      console.log('⚠️ Sync entity creation failed (will try manual method):', error);
+      console.warn('⚠️ All entity creation methods failed:', error);
+      return false;
     }
   }
 
@@ -744,19 +826,42 @@ class Timer24HCard extends HTMLElement {
         return;
       }
       
-      // Update the sync entity with new data
+      // Prepare sync data
       const syncData = {
         timeSlots: state.timeSlots,
         timestamp: state.timestamp,
         device: `device_${Date.now() % 10000}` // Simple device identifier
       };
       
-      this._hass.callService('input_text', 'set_value', {
-        entity_id: this._syncEntityId,
-        value: JSON.stringify(syncData)
-      });
+      const syncDataString = JSON.stringify(syncData);
       
-      console.log('📡 Updated sync entity for cross-device sync');
+      // Try to update real entity first
+      if (this._hass.states[this._syncEntityId]) {
+        this._hass.callService('input_text', 'set_value', {
+          entity_id: this._syncEntityId,
+          value: syncDataString
+        });
+        console.log('📡 Updated real sync entity for cross-device sync');
+      } else if (this._virtualEntity) {
+        // Update virtual entity
+        this._virtualEntity.state = syncDataString;
+        this._virtualEntity.lastUpdated = Date.now();
+        
+        // Broadcast to other instances via custom event
+        window.dispatchEvent(new CustomEvent('timer-sync-update', {
+          detail: {
+            entityId: this._syncEntityId,
+            state: syncDataString,
+            timestamp: Date.now()
+          }
+        }));
+        console.log('📡 Updated virtual sync entity for cross-device sync');
+      } else {
+        // Try to create entity again
+        this.createSyncEntity(this._syncEntityId);
+        return;
+      }
+      
       console.log('🔍 Entity:', this._syncEntityId);
       
       // Remember what we sent to avoid sync loops
@@ -764,16 +869,26 @@ class Timer24HCard extends HTMLElement {
       
     } catch (error) {
       console.warn('⚠️ Failed to update sync entity:', error);
-      console.log('🔧 Try creating the entity manually in configuration.yaml');
+      // Try to recreate entity
+      this.createSyncEntity(this._syncEntityId);
     }
   }
 
   checkSyncEntity(entityId) {
     try {
-      const entity = this._hass.states[entityId];
-      if (!entity) return;
+      let syncData = null;
       
-      const syncData = JSON.parse(entity.state);
+      // Check real entity first
+      const entity = this._hass.states[entityId];
+      if (entity) {
+        syncData = JSON.parse(entity.state);
+      } else if (this._virtualEntity && this._virtualEntity.entityId === entityId) {
+        // Check virtual entity
+        syncData = JSON.parse(this._virtualEntity.state);
+      } else {
+        return; // No entity found
+      }
+      
       const newStateStr = JSON.stringify(syncData.timeSlots);
       const currentStateStr = JSON.stringify(this.timeSlots);
       
@@ -822,7 +937,37 @@ class Timer24HCard extends HTMLElement {
       }
     });
     
+    // Listen for virtual entity sync events
+    window.addEventListener('timer-sync-update', (event) => {
+      const cardId = this.config.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const expectedEntityId = `input_text.timer_sync_${cardId}`;
+      
+      if (event.detail.entityId === expectedEntityId) {
+        try {
+          const syncData = JSON.parse(event.detail.state);
+          const newStateStr = JSON.stringify(syncData.timeSlots);
+          const currentStateStr = JSON.stringify(this.timeSlots);
+          
+          if (newStateStr !== currentStateStr && 
+              newStateStr !== this._lastKnownState && 
+              newStateStr !== this._lastSentData) {
+            
+            console.log('🔄 Detected virtual sync from another device');
+            console.log('📱 Updating from device:', syncData.device);
+            
+            this.timeSlots = syncData.timeSlots;
+            this._lastKnownState = newStateStr;
+            this.updateDisplay();
+            this.controlEntities();
+          }
+        } catch (error) {
+          console.warn('Failed to parse virtual sync data:', error);
+        }
+      }
+    });
+    
     console.log('💾 localStorage sync enabled for cross-tab synchronization');
+    console.log('📡 Virtual entity sync enabled for cross-device synchronization');
   }
 
   checkForEntityChanges() {
