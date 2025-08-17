@@ -136,6 +136,7 @@
         <button class="control-btn" onclick="randomizeTimer()">🎲 Random Timer</button>
         <button class="control-btn" onclick="clearTimer()">🗑️ Clear All</button>
         <button class="control-btn" onclick="presetWorkday()">💼 Workday Preset</button>
+        <button class="control-btn" onclick="screenshotMode()" style="background: rgba(255,255,255,0.3);">📸 Screenshot Mode</button>
     </div>
     
     <div class="info-panel">
@@ -229,6 +230,35 @@
                 };
             });
             card.requestUpdate();
+        };
+        
+        window.screenshotMode = function() {
+            // Set up perfect screenshot conditions
+            presetWorkday();
+            
+            // Hide all UI except the card
+            document.querySelector('.header').style.display = 'none';
+            document.querySelector('.controls').style.display = 'none';
+            document.querySelector('.info-panel').style.display = 'none';
+            
+            // Center the card perfectly
+            document.body.style.background = 'white';
+            document.body.style.padding = '20px';
+            document.body.style.justifyContent = 'center';
+            document.body.style.alignItems = 'center';
+            
+            // Add instructions
+            const instruction = document.createElement('div');
+            instruction.innerHTML = `
+                <div style="position: fixed; top: 10px; left: 50%; transform: translateX(-50%); 
+                           background: rgba(0,0,0,0.8); color: white; padding: 10px 20px; 
+                           border-radius: 20px; font-size: 14px; z-index: 1000;">
+                    📸 Screenshot Mode Active - Press F5 to return to normal view
+                </div>
+            `;
+            document.body.appendChild(instruction);
+            
+            alert('Screenshot mode activated! The card is now ready for screenshots. Press F5 to return to normal view.');
         };
         
         // Add some visual feedback

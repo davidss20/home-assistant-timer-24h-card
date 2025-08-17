@@ -13,7 +13,7 @@ A custom card for Home Assistant that allows you to set a daily schedule with au
 
 <div align="center">
 
-![Timer 24H Card Preview](https://raw.githubusercontent.com/davidss20/timer-24h-card/main/images/preview.png)
+![Timer 24H Card Preview](https://via.placeholder.com/600x400/667eea/ffffff?text=🕐+Timer+24H+Card+Preview)
 
 *24-hour circular timer with automatic entity control and home presence detection*
 
@@ -64,21 +64,21 @@ lovelace:
 <table>
 <tr>
 <td align="center">
-<img src="https://raw.githubusercontent.com/davidss20/timer-24h-card/main/images/card-active.png" width="300">
+<img src="https://via.placeholder.com/300x250/10b981/ffffff?text=🟢+Active+Timer+Segments" width="300">
 <br><em>Active Timer Segments</em>
 </td>
 <td align="center">
-<img src="https://raw.githubusercontent.com/davidss20/timer-24h-card/main/images/card-editor.png" width="300">
+<img src="https://via.placeholder.com/300x250/3b82f6/ffffff?text=⚙️+Visual+Editor" width="300">
 <br><em>Visual Configuration Editor</em>
 </td>
 </tr>
 <tr>
 <td align="center">
-<img src="https://raw.githubusercontent.com/davidss20/timer-24h-card/main/images/card-grid.png" width="300">
+<img src="https://via.placeholder.com/300x200/8b5cf6/ffffff?text=📱+Grid+Layout" width="300">
 <br><em>Sections Grid Layout</em>
 </td>
 <td align="center">
-<img src="https://raw.githubusercontent.com/davidss20/timer-24h-card/main/images/card-mobile.png" width="200">
+<img src="https://via.placeholder.com/200x300/f59e0b/ffffff?text=📱+Mobile+Ready" width="200">
 <br><em>Mobile Responsive</em>
 </td>
 </tr>
