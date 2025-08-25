@@ -25,12 +25,31 @@ class Timer24HCard extends HTMLElement {
   }
 
   // Home Assistant required methods
-  static getConfigElement() {
-    // Dynamically import the editor
-    import('./timer-24h-card-editor.js').catch(() => {
-      // Fallback if module loading fails
-      console.warn('Timer Card: Editor module not found, loading inline...');
-    });
+  static async getConfigElement() {
+    // Ensure editor is loaded
+    if (!customElements.get('timer-24h-card-editor')) {
+      // Load editor inline if not already defined
+      await import('./timer-24h-card-editor.js').catch(() => {
+        console.warn('Timer Card: Loading editor inline...');
+        // Define editor inline as fallback
+        class Timer24HCardEditor extends HTMLElement {
+          setConfig(config) {
+            this._config = config || {};
+            this.innerHTML = `
+              <div style="padding: 16px;">
+                <h3>Timer 24H Card Configuration</h3>
+                <p>Basic configuration (full editor loading...)</p>
+                <label>Title: <input type="text" value="${config.title || 'Timer 24H'}" /></label>
+              </div>
+            `;
+          }
+          set hass(hass) { this._hass = hass; }
+        }
+        if (!customElements.get('timer-24h-card-editor')) {
+          customElements.define('timer-24h-card-editor', Timer24HCardEditor);
+        }
+      });
+    }
     return document.createElement('timer-24h-card-editor');
   }
 
@@ -905,6 +924,7 @@ window.customCards.push({
   description: '24h timer with UI-based entity selection and automatic server sync',
   preview: true,
   documentationURL: 'https://github.com/davidss20/home-assistant-timer-card',
+  configurable: true, // This tells HA that the card has a GUI editor
   // Grid layout support
   grid_options: {
     rows: 3,
@@ -969,3 +989,162 @@ console.info(
   'color: orange; font-weight: bold; background: black',
   'color: white; font-weight: bold; background: dimgray'
 );
+
+// Load editor component
+(async () => {
+  try {
+    // Try to load external editor file
+    await import('./timer-24h-card-editor.js');
+  } catch (e) {
+    console.warn('Timer Card: External editor not found, using inline editor');
+    
+    // Inline editor fallback
+    class Timer24HCardEditor extends HTMLElement {
+      constructor() {
+        super();
+        this.attachShadow({ mode: 'open' });
+        this._config = {};
+        this._hass = null;
+      }
+
+      setConfig(config) {
+        this._config = {
+          title: config?.title || 'Timer 24H',
+          home_logic: config?.home_logic || 'OR',
+          entities: config?.entities || [],
+          home_sensors: config?.home_sensors || [],
+          save_state: config?.save_state || false,
+          storage_entity_id: config?.storage_entity_id || '',
+          auto_create_helper: config?.auto_create_helper !== false,
+          allow_local_fallback: config?.allow_local_fallback !== false
+        };
+        this.render();
+      }
+
+      set hass(hass) {
+        this._hass = hass;
+        this.render();
+      }
+
+      _handleChange(key, value) {
+        this._config[key] = value;
+        this.dispatchEvent(new CustomEvent('config-changed', {
+          detail: { config: { ...this._config } },
+          bubbles: true,
+          composed: true
+        }));
+      }
+
+      render() {
+        if (!this.shadowRoot) return;
+
+        this.shadowRoot.innerHTML = `
+          <style>
+            :host {
+              display: block;
+              padding: 16px;
+              font-family: var(--primary-font-family, sans-serif);
+            }
+            .form-group {
+              margin-bottom: 16px;
+            }
+            .form-label {
+              display: block;
+              margin-bottom: 4px;
+              font-weight: 500;
+            }
+            .form-input, .form-select {
+              width: 100%;
+              padding: 8px;
+              border: 1px solid #ccc;
+              border-radius: 4px;
+              font-size: 14px;
+            }
+            .toggle {
+              display: flex;
+              align-items: center;
+              gap: 8px;
+            }
+          </style>
+          
+          <div class="form-group">
+            <label class="form-label">Card Title</label>
+            <input 
+              type="text" 
+              class="form-input" 
+              value="${this._config.title}"
+              id="title-input"
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Home Logic</label>
+            <select 
+              class="form-select"
+              id="logic-select"
+            >
+              <option value="OR" ${this._config.home_logic === 'OR' ? 'selected' : ''}>OR - At least one sensor active</option>
+              <option value="AND" ${this._config.home_logic === 'AND' ? 'selected' : ''}>AND - All sensors active</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <div class="toggle">
+              <input 
+                type="checkbox" 
+                id="save-state-checkbox"
+                ${this._config.save_state ? 'checked' : ''}
+              />
+              <label class="form-label">Save state on server</label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Controlled Entities (comma separated)</label>
+            <input 
+              type="text" 
+              class="form-input" 
+              value="${this._config.entities.join(', ')}"
+              id="entities-input"
+              placeholder="switch.living_room, light.kitchen"
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Home Sensors (comma separated)</label>
+            <input 
+              type="text" 
+              class="form-input" 
+              value="${this._config.home_sensors.join(', ')}"
+              id="sensors-input"
+              placeholder="person.john, binary_sensor.motion"
+            />
+          </div>
+        `;
+
+        // Add event listeners
+        const titleInput = this.shadowRoot.getElementById('title-input');
+        const logicSelect = this.shadowRoot.getElementById('logic-select');
+        const saveStateCheckbox = this.shadowRoot.getElementById('save-state-checkbox');
+        const entitiesInput = this.shadowRoot.getElementById('entities-input');
+        const sensorsInput = this.shadowRoot.getElementById('sensors-input');
+
+        titleInput?.addEventListener('input', (e) => this._handleChange('title', e.target.value));
+        logicSelect?.addEventListener('change', (e) => this._handleChange('home_logic', e.target.value));
+        saveStateCheckbox?.addEventListener('change', (e) => this._handleChange('save_state', e.target.checked));
+        entitiesInput?.addEventListener('input', (e) => this._handleChange('entities', e.target.value.split(',').map(s => s.trim()).filter(s => s)));
+        sensorsInput?.addEventListener('input', (e) => this._handleChange('home_sensors', e.target.value.split(',').map(s => s.trim()).filter(s => s)));
+      }
+
+      connectedCallback() {
+        this.render();
+      }
+    }
+
+    // Register the inline editor
+    if (!customElements.get('timer-24h-card-editor')) {
+      customElements.define('timer-24h-card-editor', Timer24HCardEditor);
+      console.info('Timer Card: Inline editor registered');
+    }
+  }
+})();
