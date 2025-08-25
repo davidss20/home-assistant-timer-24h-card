@@ -70,6 +70,18 @@ class Timer24HCardEditor extends HTMLElement {
     this.fireConfigChanged();
   }
 
+  forceSyncFromServer() {
+    // מצא את הכרטיס הראשי ואלץ סינכרון
+    const timerCard = document.querySelector('timer-24h-card');
+    if (timerCard && timerCard.loadSavedState) {
+      console.log('Timer Card Editor: Forcing sync from server...');
+      timerCard.loadSavedState().then(() => {
+        console.log('Timer Card Editor: Sync completed');
+        alert('סינכרון הושלם מהשרת!');
+      });
+    }
+  }
+
   fireConfigChanged() {
     const event = new CustomEvent('config-changed', {
       detail: { config: this.config },
@@ -399,6 +411,11 @@ class Timer24HCardEditor extends HTMLElement {
             שמור את הגדרות הטיימר ב-Home Assistant (סינכרון בין כל המכשירים)<br>
             <small style="color: #10b981;">✅ אוטומטי - ללא צורך ביצירת helpers נוספים</small>
           </div>
+          <button type="button" 
+                  onclick="this.getRootNode().host.forceSyncFromServer()"
+                  style="margin-top: 8px; padding: 6px 12px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">
+            🔄 סנכרן עכשיו מהשרת
+          </button>
         </div>
       </div>
     `;
