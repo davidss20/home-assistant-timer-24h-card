@@ -16,6 +16,9 @@ interface Timer24HCardConfig extends LovelaceCardConfig {
   home_logic?: 'OR' | 'AND';
   entities?: string[];
   save_state?: boolean;
+  storage_entity_id?: string;
+  auto_create_helper?: boolean;
+  allow_local_fallback?: boolean;
 }
 
 interface TimeSlot {
@@ -38,7 +41,10 @@ const CARD_CONFIG_SCHEMA: Record<string, SchemaProperty> = {
   home_sensors: { type: 'array', optional: true },
   home_logic: { type: 'string', enum: ['OR', 'AND'], optional: true },
   entities: { type: 'array', optional: true },
-  save_state: { type: 'boolean', optional: true }
+  save_state: { type: 'boolean', optional: true ,
+  storage_entity_id: { type: 'string', optional: true },
+  auto_create_helper: { type: 'boolean', optional: true },
+  allow_local_fallback: { type: 'boolean', optional: true }
 };
 
 @customElement('timer-24h-card')
@@ -155,9 +161,77 @@ export class Timer24HCard extends LitElement implements LovelaceCard {
     }
   }
 
-  connectedCallback(): void {
+  
+  private generateCardId(): string {
+    const title = this.config?.title || 'Timer 24H';
+    return title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  }
+
+  private getStorageEntityId(): string {
+    if (this.config?.storage_entity_id) return this.config.storage_entity_id;
+    const cardId = this.generateCardId();
+    return `input_text.timer_24h_card_${cardId}`;
+  }
+
+  private async ensureEntityExists(cardTitle: string): Promise<void> {
+    const entityId = this.getStorageEntityId();
+    if (this.hass?.states?.[entityId]) return;
+    // Try to create helper via WebSocket (HA Admin required)
+    try {
+      await (this.hass as any).callWS?.({
+        type: 'input_text/create',
+        name: 'Timer 24H Card - 24 Hour Timer',
+        initial: '{}',
+        max: 10000,
+        // Some HA versions support 'id' or 'icon'; we keep minimal fields
+      });
+    } catch (e) {
+      // Swallow: on some HA versions WS create may not be available
+      console.warn('Timer Card: input_text/create WS failed (non-fatal)', e);
+    }
+  }
+
+  private async bootstrapServerStorage(): Promise<void> {
+    if (!this.config?.save_state) return;
+    if (!this.hass) return;
+    const entityId = this.getStorageEntityId();
+    if (!this.hass.states[entityId] && this.config.auto_create_helper !== false) {
+      await this.ensureEntityExists(this.config.title ?? 'Timer 24H');
+    }
+    // Initialize with "{}" if empty
+    try {
+      const st = this.hass.states[entityId]?.state;
+      if (!st || st === 'unknown' || st === '') {
+        await this.hass.callService('input_text', 'set_value', { entity_id: entityId, value: '{}' });
+      }
+    } catch (e) {
+      console.warn('Timer Card: bootstrap set_value failed', e);
+    }
+  }
+connectedCallback(): void {
     super.connectedCallback();
     this.startTimer();
+    // Auto-bootstrap server storage and subscribe to immediate state changes
+    this.bootstrapServerStorage();
+    try {
+      const targetId = this.getStorageEntityId();
+      (this.hass as any)?.connection?.subscribeEvents?.((ev: any) => {
+        if (ev?.data?.entity_id === targetId) {
+          const st = this.hass.states[targetId];
+          if (st?.state) {
+            try {
+              const data = JSON.parse(st.state);
+              if (Array.isArray(data?.timeSlots)) {
+                this.timeSlots = data.timeSlots;
+                this.requestUpdate();
+              }
+            } catch {}
+          }
+        }
+      }, 'state_changed');
+    } catch (e) {
+      console.warn('Timer Card: subscribeEvents failed', e);
+    }
   }
 
   disconnectedCallback(): void {
@@ -309,19 +383,45 @@ export class Timer24HCard extends LitElement implements LovelaceCard {
   }
 
   private saveState(): void {
-    if (this.config.save_state) {
-      localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(this.timeSlots));
+    if (!this.config?.save_state) return;
+    const entityId = this.getStorageEntityId();
+    const jsonData = JSON.stringify({ timeSlots: this.timeSlots, timestamp: Date.now(), version: 1 });
+    try {
+      if (!this.hass.states[entityId] && this.config.auto_create_helper !== false) {
+        this.ensureEntityExists(this.config.title ?? 'Timer 24H');
+      }
+      this.hass.callService('input_text','set_value',{ entity_id: entityId, value: jsonData });
+    } catch (e) {
+      console.warn('Timer Card: server save failed', e);
+    }
+    if (this.config.allow_local_fallback !== false) {
+      try { localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(this.timeSlots)); } catch {}
     }
   }
 
   private loadSavedState(): void {
-    if (this.config?.save_state) {
+    if (!this.config?.save_state) return;
+    const entityId = this.getStorageEntityId();
+    try {
+      const st = this.hass?.states?.[entityId]?.state;
+      if (st && st !== 'unknown' && st !== '{}') {
+        const data = JSON.parse(st);
+        if (Array.isArray(data?.timeSlots)) {
+          this.timeSlots = data.timeSlots;
+          return;
+        }
+      }
+    } catch (error) {
+      console.warn('Timer Card: failed to read server state', error);
+    }
+    if (this.config.allow_local_fallback !== false) {
       const saved = localStorage.getItem(`timer-24h-${this.config.title}`);
       if (saved) {
         try {
-          this.timeSlots = JSON.parse(saved);
+          const arr = JSON.parse(saved);
+          if (Array.isArray(arr)) this.timeSlots = arr;
         } catch (error) {
-          console.error('Timer Card: Failed to load saved state:', error);
+          console.error('Timer Card: Failed to load local fallback:', error);
         }
       }
     }

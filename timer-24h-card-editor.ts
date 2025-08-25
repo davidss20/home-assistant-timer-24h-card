@@ -14,11 +14,30 @@ interface Timer24HCardConfig {
   home_logic?: 'OR' | 'AND';
   entities?: string[];
   save_state?: boolean;
+  storage_entity_id?: string;
+  auto_create_helper?: boolean;
+  allow_local_fallback?: boolean;
 }
 
 @customElement('timer-24h-card-editor')
 export class Timer24HCardEditor extends LitElement implements LovelaceCardEditor {
-  @property({ attribute: false }) public hass!: HomeAssistant;
+  
+  private handleAutoCreateChange(ev: Event): void {
+    const target = ev.target as HTMLInputElement;
+    this.config = { ...this.config, auto_create_helper: target.checked };
+    this.configChanged();
+  }
+  private handleLocalFallbackChange(ev: Event): void {
+    const target = ev.target as HTMLInputElement;
+    this.config = { ...this.config, allow_local_fallback: target.checked };
+    this.configChanged();
+  }
+  private handleStorageEntityInput(ev: Event): void {
+    const target = ev.target as HTMLInputElement;
+    this.config = { ...this.config, storage_entity_id: target.value };
+    this.configChanged();
+  }
+@property({ attribute: false }) public hass!: HomeAssistant;
   @state() private config!: Timer24HCardConfig;
   @state() private entityFilter: string = '';
 
@@ -182,6 +201,29 @@ export class Timer24HCardEditor extends LitElement implements LovelaceCardEditor
             @change="${this.handleSaveStateChange}"
           />
           <label for="save-state">💾 Save timer settings in browser</label>
+        </div>
+
+        <div class="checkbox-container">
+          <input type="checkbox" id="auto-create"
+            .checked="${this.config.auto_create_helper !== false}"
+            @change="${this.handleAutoCreateChange}" />
+          <label for="auto-create">🧰 Auto-create server helper if missing</label>
+        </div>
+
+        <div class="checkbox-container">
+          <input type="checkbox" id="local-fallback"
+            .checked="${this.config.allow_local_fallback !== false}"
+            @change="${this.handleLocalFallbackChange}" />
+          <label for="local-fallback">💾 Also keep a local fallback (optional)</label>
+        </div>
+
+        <div class="field">
+          <label for="storage-entity">Storage entity_id (optional)</label>
+          <input id="storage-entity" type="text"
+            placeholder="input_text.timer_24h_card_my_timer"
+            .value="${this.config.storage_entity_id || ''}"
+            @input="${this.handleStorageEntityInput}" />
+          <div class="help-text">If empty, the card generates an id from the title.</div>
         </div>
         <div class="help-text">💡 If checked, your timer settings will be saved even after refreshing the page or closing the browser</div>
         
