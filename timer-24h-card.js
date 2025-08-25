@@ -672,6 +672,7 @@ class Timer24HCard extends HTMLElement {
           font-family: var(--primary-font-family, sans-serif);
           position: relative;
           contain: layout style paint;
+          margin: 8px;
         }
         
         .card {
@@ -680,13 +681,14 @@ class Timer24HCard extends HTMLElement {
           box-shadow: var(--ha-card-box-shadow, 0 2px 8px rgba(0,0,0,0.1));
           padding: 0;
           overflow: hidden;
-          height: 100%;
+          height: calc(100% - 16px);
           min-height: 200px;
           display: flex;
           flex-direction: column;
           position: relative;
           z-index: 1;
           isolation: isolate;
+          margin: 8px;
         }
         
         .header {
