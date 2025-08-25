@@ -1003,20 +1003,29 @@ console.info(
       constructor() {
         super();
         this.attachShadow({ mode: 'open' });
-        this._config = {};
+        this._config = {
+          title: 'Timer 24H',
+          home_logic: 'OR',
+          entities: [],
+          home_sensors: [],
+          save_state: false,
+          storage_entity_id: '',
+          auto_create_helper: true,
+          allow_local_fallback: true
+        };
         this._hass = null;
       }
 
       setConfig(config) {
         this._config = {
-          title: config?.title || 'Timer 24H',
-          home_logic: config?.home_logic || 'OR',
-          entities: config?.entities || [],
-          home_sensors: config?.home_sensors || [],
-          save_state: config?.save_state || false,
-          storage_entity_id: config?.storage_entity_id || '',
-          auto_create_helper: config?.auto_create_helper !== false,
-          allow_local_fallback: config?.allow_local_fallback !== false
+          title: (config && config.title) ? config.title : 'Timer 24H',
+          home_logic: (config && config.home_logic) ? config.home_logic : 'OR',
+          entities: (config && Array.isArray(config.entities)) ? config.entities : [],
+          home_sensors: (config && Array.isArray(config.home_sensors)) ? config.home_sensors : [],
+          save_state: (config && config.save_state) ? true : false,
+          storage_entity_id: (config && config.storage_entity_id) ? config.storage_entity_id : '',
+          auto_create_helper: (config && config.auto_create_helper !== false) ? true : false,
+          allow_local_fallback: (config && config.allow_local_fallback !== false) ? true : false
         };
         this.render();
       }
@@ -1037,6 +1046,28 @@ console.info(
 
       render() {
         if (!this.shadowRoot) return;
+        
+        // Ensure config exists and has required properties
+        if (!this._config) {
+          this._config = {
+            title: 'Timer 24H',
+            home_logic: 'OR',
+            entities: [],
+            home_sensors: [],
+            save_state: false,
+            storage_entity_id: '',
+            auto_create_helper: true,
+            allow_local_fallback: true
+          };
+        }
+        
+        // Ensure arrays are initialized
+        if (!Array.isArray(this._config.entities)) {
+          this._config.entities = [];
+        }
+        if (!Array.isArray(this._config.home_sensors)) {
+          this._config.home_sensors = [];
+        }
 
         this.shadowRoot.innerHTML = `
           <style>
@@ -1104,7 +1135,7 @@ console.info(
             <input 
               type="text" 
               class="form-input" 
-              value="${this._config.entities.join(', ')}"
+              value="${(this._config.entities && Array.isArray(this._config.entities)) ? this._config.entities.join(', ') : ''}"
               id="entities-input"
               placeholder="switch.living_room, light.kitchen"
             />
@@ -1115,7 +1146,7 @@ console.info(
             <input 
               type="text" 
               class="form-input" 
-              value="${this._config.home_sensors.join(', ')}"
+              value="${(this._config.home_sensors && Array.isArray(this._config.home_sensors)) ? this._config.home_sensors.join(', ') : ''}"
               id="sensors-input"
               placeholder="person.john, binary_sensor.motion"
             />
@@ -1132,8 +1163,14 @@ console.info(
         titleInput?.addEventListener('input', (e) => this._handleChange('title', e.target.value));
         logicSelect?.addEventListener('change', (e) => this._handleChange('home_logic', e.target.value));
         saveStateCheckbox?.addEventListener('change', (e) => this._handleChange('save_state', e.target.checked));
-        entitiesInput?.addEventListener('input', (e) => this._handleChange('entities', e.target.value.split(',').map(s => s.trim()).filter(s => s)));
-        sensorsInput?.addEventListener('input', (e) => this._handleChange('home_sensors', e.target.value.split(',').map(s => s.trim()).filter(s => s)));
+        entitiesInput?.addEventListener('input', (e) => {
+          const entities = e.target.value ? e.target.value.split(',').map(s => s.trim()).filter(s => s) : [];
+          this._handleChange('entities', entities);
+        });
+        sensorsInput?.addEventListener('input', (e) => {
+          const sensors = e.target.value ? e.target.value.split(',').map(s => s.trim()).filter(s => s) : [];
+          this._handleChange('home_sensors', sensors);
+        });
       }
 
       connectedCallback() {
