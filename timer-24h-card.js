@@ -246,6 +246,59 @@ class Timer24HCard extends HTMLElement {
     if (this.syncInterval) {
       clearInterval(this.syncInterval);
     }
+    
+    // Cleanup helper entities when card is removed
+    this._scheduleCleanup();
+  }
+
+  _scheduleCleanup() {
+    // Wait a bit to see if card is reconnected (e.g., during refresh)
+    setTimeout(() => {
+      if (!this.isConnected && this.config?.storage_entity_id && this.hass) {
+        this._cleanupHelperEntity();
+      }
+    }, 5000); // Wait 5 seconds
+  }
+
+  async _cleanupHelperEntity() {
+    try {
+      const entityId = this.config.storage_entity_id;
+      
+      // Check if entity still exists and was created by us
+      if (!this.hass.states[entityId]) {
+        return; // Already deleted
+      }
+
+      // Only delete if it's our timer card entity
+      if (!entityId.includes('timer_24h_card_')) {
+        return; // Not our entity
+      }
+
+      console.log(`Timer Card: Cleaning up helper entity: ${entityId}`);
+
+      // Try to delete via WebSocket API
+      try {
+        await this.hass.callWS({
+          type: 'config/input_text/delete',
+          entity_id: entityId.replace('input_text.', '')
+        });
+        console.log(`✅ Timer Card: Successfully deleted helper entity: ${entityId}`);
+      } catch (wsError) {
+        // Try alternative API
+        try {
+          await this.hass.callWS({
+            type: 'config/helpers/delete',
+            entity_id: entityId
+          });
+          console.log(`✅ Timer Card: Successfully deleted helper entity via legacy API: ${entityId}`);
+        } catch (legacyError) {
+          console.warn(`Timer Card: Could not auto-delete helper entity ${entityId}. Please delete manually.`);
+        }
+      }
+
+    } catch (error) {
+      console.warn('Timer Card: Error during cleanup:', error);
+    }
   }
 
   // Additional methods for Home Assistant compatibility
@@ -653,6 +706,34 @@ class Timer24HCard extends HTMLElement {
       
     } catch (error) {
       throw new Error(`Failed to write storage: ${error.message}`);
+    }
+  }
+
+  static async deleteStorageEntity(hass, entityId) {
+    try {
+      // Only delete if it's our timer card entity
+      if (!entityId.includes('timer_24h_card_')) {
+        throw new Error('Not a timer card entity');
+      }
+
+      // Try to delete via WebSocket API
+      try {
+        await hass.callWS({
+          type: 'config/input_text/delete',
+          entity_id: entityId.replace('input_text.', '')
+        });
+        return true;
+      } catch (wsError) {
+        // Try alternative API
+        await hass.callWS({
+          type: 'config/helpers/delete',
+          entity_id: entityId
+        });
+        return true;
+      }
+      
+    } catch (error) {
+      throw new Error(`Failed to delete storage entity: ${error.message}`);
     }
   }
 
@@ -1148,9 +1229,10 @@ class Timer24HCardEditor extends HTMLElement {
             '<div style="display: flex; gap: 8px;">' +
               '<input type="text" id="storage-entity-input" value="' + (this._config.storage_entity_id || '') + '" ' +
               'readonly style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5; color: #666;" />' +
-              '<button type="button" id="regenerate-id-btn" style="padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; background: #fff; cursor: pointer;">🔄</button>' +
+              '<button type="button" id="regenerate-id-btn" style="padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; background: #fff; cursor: pointer;" title="Generate new ID">🔄</button>' +
+              '<button type="button" id="delete-helper-btn" style="padding: 8px 12px; border: 1px solid #dc3545; border-radius: 4px; background: #fff; color: #dc3545; cursor: pointer;" title="Delete helper entity">🗑️</button>' +
             '</div>' +
-            '<div style="font-size: 12px; color: #666; margin-top: 4px;">Auto-generated unique ID for server storage. Click 🔄 to generate new ID.</div>' +
+            '<div style="font-size: 12px; color: #666; margin-top: 4px;">Auto-generated unique ID for server storage. Click 🔄 to generate new ID, 🗑️ to delete helper entity.</div>' +
           '</div>' +
 
           '<div style="margin-bottom: 16px;">' +
@@ -1176,6 +1258,7 @@ class Timer24HCardEditor extends HTMLElement {
           const saveStateCheckbox = this.querySelector('#save-state-checkbox');
           const storageEntityInput = this.querySelector('#storage-entity-input');
           const regenerateIdBtn = this.querySelector('#regenerate-id-btn');
+          const deleteHelperBtn = this.querySelector('#delete-helper-btn');
           const entitiesInput = this.querySelector('#entities-input');
           const sensorsInput = this.querySelector('#sensors-input');
 
@@ -1208,6 +1291,46 @@ class Timer24HCardEditor extends HTMLElement {
                 storageEntityInput.value = newId;
               }
               this._fireConfigChanged();
+            });
+          }
+
+          if (deleteHelperBtn) {
+            deleteHelperBtn.addEventListener('click', async (e) => {
+              if (!this._config.storage_entity_id || !this._hass) return;
+              
+              const confirmed = confirm('Are you sure you want to delete the helper entity? This will remove all saved timer data.');
+              if (!confirmed) return;
+              
+              try {
+                const entityId = this._config.storage_entity_id;
+                
+                // Try to delete via WebSocket API
+                try {
+                  await this._hass.callWS({
+                    type: 'config/input_text/delete',
+                    entity_id: entityId.replace('input_text.', '')
+                  });
+                } catch (wsError) {
+                  // Try alternative API
+                  await this._hass.callWS({
+                    type: 'config/helpers/delete',
+                    entity_id: entityId
+                  });
+                }
+                
+                // Clear the entity ID and regenerate new one
+                this._config.storage_entity_id = this._generateUniqueEntityId();
+                if (storageEntityInput) {
+                  storageEntityInput.value = this._config.storage_entity_id;
+                }
+                this._fireConfigChanged();
+                
+                alert('Helper entity deleted successfully. A new entity ID has been generated.');
+                
+              } catch (error) {
+                alert('Failed to delete helper entity: ' + (error.message || error));
+                console.error('Timer Card Editor: Failed to delete helper entity:', error);
+              }
             });
           }
 
