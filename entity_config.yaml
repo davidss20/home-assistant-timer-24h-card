@@ -1,0 +1,14 @@
+# הוסף את זה ל-configuration.yaml שלך
+
+input_text:
+  timer_24h_card_timer_card_24_hour_timer:
+    name: "Timer 24H Card - Timer Card 24 Hour Timer"
+    max: 10000
+    initial: "{}"
+
+# אחרי ההוספה:
+# 1. שמור את הקובץ
+# 2. עבור ל-Developer Tools → YAML
+# 3. לחץ "Check Configuration"
+# 4. אם הכל תקין, לחץ "Restart"
+# 5. או לחץ "Reload Input Text Entities"

@@ -82,6 +82,37 @@ class Timer24HCardEditor extends HTMLElement {
     }
   }
 
+  async createStorageEntity() {
+    const timerCard = document.querySelector('timer-24h-card');
+    if (timerCard && timerCard.hass && timerCard.config) {
+      const cardId = timerCard.generateCardId();
+      const entityId = `input_text.timer_24h_card_${cardId}`;
+      
+      try {
+        // נסה ליצור דרך Helpers API
+        const result = await timerCard.hass.callWS({
+          type: 'config/input_text/create',
+          name: `Timer 24H Card - ${timerCard.config.title}`,
+          max: 10000,
+          initial: '{}',
+          mode: 'text'
+        });
+        
+        console.log('Timer Card Editor: Entity created successfully', result);
+        alert(`Entity נוצר בהצלחה!\n${entityId}\n\nעכשיו הסינכרון יעבוד בין כל המכשירים.`);
+        
+        // נסה לשמור מיד
+        setTimeout(() => {
+          timerCard.saveState();
+        }, 2000);
+        
+      } catch (error) {
+        console.error('Timer Card Editor: Failed to create entity', error);
+        alert(`לא הצלחתי ליצור את ה-entity אוטומטית.\n\nאנא צור אותו ידנית:\n\n1. עבור ל-Settings → Helpers\n2. Create Helper → Text\n3. Name: Timer 24H Card - ${timerCard.config.title}\n4. Entity ID: ${entityId}\n5. Max length: 10000`);
+      }
+    }
+  }
+
   fireConfigChanged() {
     const event = new CustomEvent('config-changed', {
       detail: { config: this.config },
@@ -411,11 +442,18 @@ class Timer24HCardEditor extends HTMLElement {
             שמור את הגדרות הטיימר ב-Home Assistant (סינכרון בין כל המכשירים)<br>
             <small style="color: #10b981;">✅ אוטומטי - ללא צורך ביצירת helpers נוספים</small>
           </div>
-          <button type="button" 
-                  onclick="this.getRootNode().host.forceSyncFromServer()"
-                  style="margin-top: 8px; padding: 6px 12px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">
-            🔄 סנכרן עכשיו מהשרת
-          </button>
+          <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+            <button type="button" 
+                    onclick="this.getRootNode().host.forceSyncFromServer()"
+                    style="padding: 6px 12px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+              🔄 סנכרן מהשרת
+            </button>
+            <button type="button" 
+                    onclick="this.getRootNode().host.createStorageEntity()"
+                    style="padding: 6px 12px; background: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+              🏗️ צור Entity לסינכרון
+            </button>
+          </div>
         </div>
       </div>
     `;

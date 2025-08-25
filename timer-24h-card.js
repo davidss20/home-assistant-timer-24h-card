@@ -447,41 +447,80 @@ class Timer24HCard extends HTMLElement {
   async ensureEntityExists(cardId, cardTitle) {
     const entityId = `input_text.timer_24h_card_${cardId}`;
     
+    console.log(`Timer Card: Ensuring entity exists: ${entityId}`);
+    
     try {
-      // נסה ליצור דרך developer tools service call
-      await this.hass.callService('input_text', 'reload');
-      
-      // חכה קצת
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // בדוק שוב אם הentity קיים
-      if (!this.hass.states[entityId]) {
-        console.warn(`Timer Card: Please create this entity manually in configuration.yaml:
-
-input_text:
-  timer_24h_card_${cardId}:
-    name: "Timer 24H Card - ${cardTitle}"
-    max: 10000
-    initial: "{}"
-        `);
+      // נסה ליצור דרך Helpers API (הדרך הטובה ביותר)
+      try {
+        const result = await this.hass.callWS({
+          type: 'config/input_text/create',
+          name: `Timer 24H Card - ${cardTitle}`,
+          max: 10000,
+          initial: '{}',
+          mode: 'text'
+        });
+        console.log(`✅ Timer Card: Successfully created entity via API: ${entityId}`, result);
         
-        // נסה ליצור באמצעות helpers API
+        // חכה שהentity יהיה זמין
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        return;
+        
+      } catch (apiError) {
+        console.warn('Timer Card: Helpers API failed:', apiError);
+        
+        // נסה דרך הAPI הישן
         try {
           await this.hass.callWS({
-            type: 'config/input_text/create',
-            name: `Timer 24H Card - ${cardTitle}`,
-            entity_id: `timer_24h_card_${cardId}`,
-            max: 10000,
-            initial: '{}'
+            type: 'config/helpers/create',
+            domain: 'input_text',
+            data: {
+              name: `Timer 24H Card - ${cardTitle}`,
+              max: 10000,
+              initial: '{}'
+            }
           });
-          console.log(`Timer Card: Created entity via helpers API: ${entityId}`);
-        } catch (wsError) {
-          console.warn('Timer Card: Could not create entity via API:', wsError);
+          console.log(`✅ Timer Card: Created entity via old API: ${entityId}`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          return;
+          
+        } catch (oldApiError) {
+          console.warn('Timer Card: Old API also failed:', oldApiError);
         }
       }
       
+      // אם כל הAPIים נכשלו, הצג הוראות מפורטות
+      const instructions = `
+🔧 Timer Card: יש ליצור entity באופן ידני
+
+📋 אופציה 1 - דרך ה-UI:
+1. עבור ל-Settings → Devices & Services → Helpers
+2. לחץ "Create Helper" → "Text"
+3. Name: Timer 24H Card - ${cardTitle}
+4. Entity ID: ${entityId}
+5. Maximum length: 10000
+6. Initial value: {}
+
+📋 אופציה 2 - דרך configuration.yaml:
+input_text:
+  ${entityId}:
+    name: "Timer 24H Card - ${cardTitle}"
+    max: 10000
+    initial: "{}"
+
+אחרי היצירה, רענן את הדף או לחץ על כפתור הסינכרון.
+      `;
+      
+      console.warn(instructions);
+      
+      // הצג alert למשתמש
+      if (typeof alert !== 'undefined') {
+        setTimeout(() => {
+          alert(`Timer Card צריך entity חדש!\n\nעבור ל-Settings → Helpers ויצור Text Helper:\nName: Timer 24H Card - ${cardTitle}\nEntity ID: ${entityId}\nMax length: 10000`);
+        }, 1000);
+      }
+      
     } catch (error) {
-      console.warn('Timer Card: Error ensuring entity exists:', error);
+      console.error('Timer Card: Error in ensureEntityExists:', error);
     }
   }
 
