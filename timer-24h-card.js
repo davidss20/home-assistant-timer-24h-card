@@ -12,6 +12,15 @@ class Timer24HCard extends HTMLElement {
     this.updateInterval = null;
     this.config = null;
     this._hass = null;
+    this._layout = null;
+    
+    // Initialize layout property immediately
+    this.layout = {
+      grid_rows: 2,
+      grid_columns: 6,
+      grid_min_rows: 2,
+      grid_min_columns: 3
+    };
   }
 
   // Home Assistant required methods
@@ -29,8 +38,54 @@ class Timer24HCard extends HTMLElement {
     };
   }
 
+  // Legacy Masonry layout support
   getCardSize() {
     return 3;
+  }
+
+  // Grid layout support - NEW Home Assistant sections
+  static getLayoutOptions() {
+    return {
+      grid_rows: 2,
+      grid_columns: 6,
+      grid_min_rows: 2,
+      grid_min_columns: 3
+    };
+  }
+
+  // Layout property for grid sections
+  get layout() {
+    return {
+      grid_rows: 2,
+      grid_columns: 6,
+      grid_min_rows: 2,
+      grid_min_columns: 3
+    };
+  }
+
+  set layout(value) {
+    // Accept layout changes from Home Assistant
+    if (value && typeof value === 'object') {
+      this._layout = { ...value };
+    } else {
+      // Fallback to default layout
+      this._layout = {
+        grid_rows: 2,
+        grid_columns: 6,
+        grid_min_rows: 2,
+        grid_min_columns: 3
+      };
+    }
+  }
+
+  // Additional layout methods for compatibility
+  getLayoutOptions() {
+    return {
+      grid_rows: 2,
+      grid_columns: 6,
+      grid_min_rows: 2,
+      grid_min_columns: 3
+    };
   }
 
   setConfig(config) {
@@ -59,7 +114,7 @@ class Timer24HCard extends HTMLElement {
         this.timeSlots = this.initializeTimeSlots();
       }
       if (this.shadowRoot) {
-        this.render();
+    this.render();
       }
     });
   }
@@ -68,13 +123,13 @@ class Timer24HCard extends HTMLElement {
     this._hass = hass;
     if (hass) {
       const oldHomeStatus = this.isAtHome;
-      this.checkHomeStatus();
-      
+    this.checkHomeStatus();
+        
       if (oldHomeStatus !== this.isAtHome) {
-        this.controlEntities();
-      }
-      
-      this.updateCurrentTime();
+    this.controlEntities();
+        }
+        
+        this.updateCurrentTime();
       this.render();
     }
   }
@@ -84,13 +139,34 @@ class Timer24HCard extends HTMLElement {
   }
 
   connectedCallback() {
+    super.connectedCallback && super.connectedCallback();
     this.startTimer();
+    
+    // Ensure layout is set for grid sections
+    if (!this.layout) {
+      this.layout = {
+        grid_rows: 2,
+        grid_columns: 6,
+        grid_min_rows: 2,
+        grid_min_columns: 3
+      };
+    }
   }
 
   disconnectedCallback() {
+    super.disconnectedCallback && super.disconnectedCallback();
     if (this.updateInterval) {
       clearInterval(this.updateInterval);
     }
+  }
+
+  // Additional methods for Home Assistant compatibility
+  updated(changedProperties) {
+    super.updated && super.updated(changedProperties);
+  }
+
+  firstUpdated(changedProperties) {
+    super.firstUpdated && super.firstUpdated(changedProperties);
   }
 
   initializeTimeSlots() {
@@ -195,9 +271,9 @@ class Timer24HCard extends HTMLElement {
       if (currentState !== shouldBeOn && lastControlledState !== shouldBeOn) {
         try {
           this.hass.callService('homeassistant', shouldBeOn ? 'turn_on' : 'turn_off', {
-            entity_id: entityId
-          });
-          console.log(`Timer Card: ${shouldBeOn ? 'Turned on' : 'Turned off'} ${entityId}`);
+          entity_id: entityId
+        });
+            console.log(`Timer Card: ${shouldBeOn ? 'Turned on' : 'Turned off'} ${entityId}`);
           
           this.lastControlledStates.set(entityId, shouldBeOn);
           
@@ -290,7 +366,7 @@ class Timer24HCard extends HTMLElement {
           initial: '{}'
         }
       });
-    } catch (error) {
+      } catch (error) {
       console.warn('Timer Card: Could not create input_text entity automatically:', error);
       console.info(`Timer Card: Please create this entity manually in configuration.yaml:
       
@@ -326,9 +402,9 @@ input_text:
           } catch (parseError) {
             console.warn('Timer Card: Failed to parse data from Home Assistant entity:', parseError);
           }
+          }
         }
-      }
-    } catch (error) {
+      } catch (error) {
       console.warn('Timer Card: Failed to load from Home Assistant entity, trying localStorage:', error);
     }
     
@@ -345,8 +421,8 @@ input_text:
           if (this.hass) {
             setTimeout(() => this.saveState(), 1000); // Delay to ensure hass is ready
           }
-        }
-      } catch (error) {
+            }
+          } catch (error) {
         console.error('Timer Card: Failed to load saved state:', error);
       }
     }
@@ -406,8 +482,8 @@ input_text:
       const textPos = this.getTextPosition(hour, 24, (innerRadius + outerRadius) / 2, centerX, centerY);
       const slot = this.timeSlots.find(s => s.hour === hour && s.minute === 0);
       const isActive = slot?.isActive || false;
-      const isCurrent = this.currentTime.getHours() === hour && this.currentTime.getMinutes() < 30;
-      
+        const isCurrent = this.currentTime.getHours() === hour && this.currentTime.getMinutes() < 30;
+        
       return `
         <path d="${sectorPath}" 
               fill="${isActive ? '#10b981' : '#ffffff'}"
@@ -429,8 +505,8 @@ input_text:
       const textPos = this.getTextPosition(hour, 24, (50 + innerRadius) / 2, centerX, centerY);
       const slot = this.timeSlots.find(s => s.hour === hour && s.minute === 30);
       const isActive = slot?.isActive || false;
-      const isCurrent = this.currentTime.getHours() === hour && this.currentTime.getMinutes() >= 30;
-      
+        const isCurrent = this.currentTime.getHours() === hour && this.currentTime.getMinutes() >= 30;
+        
       return `
         <path d="${sectorPath}" 
               fill="${isActive ? '#10b981' : '#ffffff'}"
@@ -556,11 +632,68 @@ window.customCards.push({
   name: 'Timer 24H Card',
   description: 'כרטיס טיימר 24 שעות עם בקרה אוטומטית על ישויות',
   preview: true,
-  documentationURL: 'https://github.com/davidss20/home-assistant-timer-card'
+  documentationURL: 'https://github.com/davidss20/home-assistant-timer-card',
+  // Grid layout support
+  grid_options: {
+    rows: 2,
+    columns: 6,
+    min_rows: 2,
+    min_columns: 3
+  }
 });
 
+// Ensure layout compatibility with Home Assistant grid sections
+if (Timer24HCard && Timer24HCard.prototype) {
+  Timer24HCard.prototype.getLayoutOptions = Timer24HCard.prototype.getLayoutOptions || function() {
+    return {
+      grid_rows: 2,
+      grid_columns: 6,
+      grid_min_rows: 2,
+      grid_min_columns: 3
+    };
+  };
+
+  // Static layout options for Home Assistant
+  Timer24HCard.getLayoutOptions = Timer24HCard.getLayoutOptions || function() {
+    return {
+      grid_rows: 2,
+      grid_columns: 6,
+      grid_min_rows: 2,
+      grid_min_columns: 3
+    };
+  };
+
+  // Ensure layout property exists
+  if (!Timer24HCard.prototype.hasOwnProperty('layout')) {
+    Object.defineProperty(Timer24HCard.prototype, 'layout', {
+      get: function() {
+        return this._layout || {
+          grid_rows: 2,
+          grid_columns: 6,
+          grid_min_rows: 2,
+          grid_min_columns: 3
+        };
+      },
+      set: function(value) {
+        if (value && typeof value === 'object') {
+          this._layout = { ...value };
+        } else {
+          this._layout = {
+            grid_rows: 2,
+            grid_columns: 6,
+            grid_min_rows: 2,
+            grid_min_columns: 3
+          };
+        }
+      },
+      enumerable: true,
+      configurable: true
+    });
+  }
+}
+
 console.info(
-  '%c  TIMER-24H-CARD  %c  Version 2.0.0  ',
+  '%c  TIMER-24H-CARD  %c  Version 2.0.0 - Grid Compatible  ',
   'color: orange; font-weight: bold; background: black',
   'color: white; font-weight: bold; background: dimgray'
 );
