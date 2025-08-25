@@ -54,13 +54,18 @@ class Timer24HCard extends HTMLElement {
   }
 
   static getStubConfig() {
+    // Generate unique storage entity ID
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    const uniqueId = `timer_24h_card_${timestamp}_${random}`;
+    
     return {
       title: 'Timer 24H',
       home_logic: 'OR',
       entities: [],
       home_sensors: [],
       save_state: false,
-      storage_entity_id: '',
+      storage_entity_id: `input_text.${uniqueId}`,
       auto_create_helper: true,
       allow_local_fallback: true
     };
@@ -564,7 +569,14 @@ class Timer24HCard extends HTMLElement {
   // Persistence helper methods for editor
   static async ensureStorageEntity(hass, desiredId) {
     try {
-      const entityId = desiredId || `input_text.timer_24h_card_${Date.now()}`;
+      let entityId = desiredId;
+      
+      // Generate unique ID if not provided
+      if (!entityId) {
+        const timestamp = Date.now();
+        const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+        entityId = `input_text.timer_24h_card_${timestamp}_${random}`;
+      }
       
       // Check if entity already exists
       if (hass.states[entityId]) {
@@ -999,6 +1011,13 @@ class Timer24HCardEditor extends HTMLElement {
     this._hass = null;
   }
 
+  _generateUniqueEntityId() {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    const uniqueId = `timer_24h_card_${timestamp}_${random}`;
+    return `input_text.${uniqueId}`;
+  }
+
   setConfig(config) {
     // Ultra-safe config handling
     this._config = {};
@@ -1009,7 +1028,9 @@ class Timer24HCardEditor extends HTMLElement {
       this._config.entities = [];
       this._config.home_sensors = [];
       this._config.save_state = (config && config.save_state === true) ? true : false;
-      this._config.storage_entity_id = (config && typeof config.storage_entity_id === 'string') ? config.storage_entity_id : '';
+      this._config.storage_entity_id = (config && typeof config.storage_entity_id === 'string' && config.storage_entity_id !== '') 
+        ? config.storage_entity_id 
+        : this._generateUniqueEntityId();
       
       // Handle arrays safely
       if (config && config.entities && Array.isArray(config.entities)) {
@@ -1088,6 +1109,16 @@ class Timer24HCardEditor extends HTMLElement {
           '</div>' +
 
           '<div style="margin-bottom: 16px;">' +
+            '<label style="display: block; margin-bottom: 4px; font-weight: 500;">Storage Entity ID</label>' +
+            '<div style="display: flex; gap: 8px;">' +
+              '<input type="text" id="storage-entity-input" value="' + (this._config.storage_entity_id || '') + '" ' +
+              'readonly style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5; color: #666;" />' +
+              '<button type="button" id="regenerate-id-btn" style="padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; background: #fff; cursor: pointer;">🔄</button>' +
+            '</div>' +
+            '<div style="font-size: 12px; color: #666; margin-top: 4px;">Auto-generated unique ID for server storage. Click 🔄 to generate new ID.</div>' +
+          '</div>' +
+
+          '<div style="margin-bottom: 16px;">' +
             '<label style="display: block; margin-bottom: 4px; font-weight: 500;">Controlled Entities (comma separated)</label>' +
             '<input type="text" id="entities-input" value="' + entitiesStr + '" ' +
             'placeholder="switch.living_room, light.kitchen" ' +
@@ -1108,6 +1139,8 @@ class Timer24HCardEditor extends HTMLElement {
           const titleInput = this.querySelector('#title-input');
           const logicSelect = this.querySelector('#logic-select');
           const saveStateCheckbox = this.querySelector('#save-state-checkbox');
+          const storageEntityInput = this.querySelector('#storage-entity-input');
+          const regenerateIdBtn = this.querySelector('#regenerate-id-btn');
           const entitiesInput = this.querySelector('#entities-input');
           const sensorsInput = this.querySelector('#sensors-input');
 
@@ -1128,6 +1161,17 @@ class Timer24HCardEditor extends HTMLElement {
           if (saveStateCheckbox) {
             saveStateCheckbox.addEventListener('change', (e) => {
               this._config.save_state = e.target.checked;
+              this._fireConfigChanged();
+            });
+          }
+
+          if (regenerateIdBtn) {
+            regenerateIdBtn.addEventListener('click', (e) => {
+              const newId = this._generateUniqueEntityId();
+              this._config.storage_entity_id = newId;
+              if (storageEntityInput) {
+                storageEntityInput.value = newId;
+              }
               this._fireConfigChanged();
             });
           }
