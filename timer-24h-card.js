@@ -449,8 +449,9 @@ class Timer24HCard extends HTMLElement {
     console.log(`Timer Card: Ensuring entity exists: ${entityId}`);
     
     try {
-      // נסה ליצור דרך Helpers API (הדרך הטובה ביותר)
+      // נסה ליצור דרך Helpers API החדש
       try {
+        console.log('Timer Card: Trying new Helpers API...');
         const result = await this.hass.callWS({
           type: 'config/input_text/create',
           name: `Timer 24H Card - ${cardTitle}`,
@@ -458,17 +459,18 @@ class Timer24HCard extends HTMLElement {
           initial: '{}',
           mode: 'text'
         });
-        console.log(`✅ Timer Card: Successfully created entity via API: ${entityId}`, result);
+        console.log(`✅ Timer Card: Successfully created entity via new API:`, result);
         
         // חכה שהentity יהיה זמין
         await new Promise(resolve => setTimeout(resolve, 2000));
         return;
         
       } catch (apiError) {
-        console.warn('Timer Card: Helpers API failed:', apiError);
+        console.warn('Timer Card: New Helpers API failed:', apiError.message || apiError);
         
         // נסה דרך הAPI הישן
         try {
+          console.log('Timer Card: Trying legacy Helpers API...');
           await this.hass.callWS({
             type: 'config/helpers/create',
             domain: 'input_text',
@@ -478,16 +480,28 @@ class Timer24HCard extends HTMLElement {
               initial: '{}'
             }
           });
-          console.log(`✅ Timer Card: Created entity via old API: ${entityId}`);
+          console.log(`✅ Timer Card: Created entity via legacy API`);
           await new Promise(resolve => setTimeout(resolve, 2000));
           return;
           
         } catch (oldApiError) {
-          console.warn('Timer Card: Old API also failed:', oldApiError);
+          console.warn('Timer Card: Legacy API also failed:', oldApiError.message || oldApiError);
+          
+          // נסה דרך service call
+          try {
+            console.log('Timer Card: Trying service call method...');
+            await this.hass.callService('input_text', 'reload', {});
+            console.log('Timer Card: Service call completed, but entity creation is manual');
+          } catch (serviceError) {
+            console.warn('Timer Card: Service call failed:', serviceError.message || serviceError);
+          }
         }
       }
       
       // אם כל הAPIים נכשלו, הצג הוראות מפורטות
+      const cardId = this.generateCardId();
+      const cleanEntityId = entityId.replace('input_text.', '');
+      
       const instructions = `
 🔧 Timer Card: יש ליצור entity באופן ידני
 
@@ -495,13 +509,13 @@ class Timer24HCard extends HTMLElement {
 1. עבור ל-Settings → Devices & Services → Helpers
 2. לחץ "Create Helper" → "Text"
 3. Name: Timer 24H Card - ${cardTitle}
-4. Entity ID: ${entityId}
+4. Entity ID: ${cleanEntityId}
 5. Maximum length: 10000
 6. Initial value: {}
 
 📋 אופציה 2 - דרך configuration.yaml:
 input_text:
-  ${entityId}:
+  ${cleanEntityId}:
     name: "Timer 24H Card - ${cardTitle}"
     max: 10000
     initial: "{}"
@@ -514,7 +528,7 @@ input_text:
       // הצג alert למשתמש
       if (typeof alert !== 'undefined') {
         setTimeout(() => {
-          alert(`Timer Card צריך entity חדש!\n\nעבור ל-Settings → Helpers ויצור Text Helper:\nName: Timer 24H Card - ${cardTitle}\nEntity ID: ${entityId}\nMax length: 10000`);
+          alert(`Timer Card צריך entity חדש!\n\nעבור ל-Settings → Helpers ויצור Text Helper:\nName: Timer 24H Card - ${cardTitle}\nEntity ID: ${cleanEntityId}\nMax length: 10000\nInitial value: {}`);
         }, 1000);
       }
       
@@ -592,14 +606,23 @@ input_text:
   generateCardId() {
     // Generate a unique ID based on the card title and configuration
     const title = this.config.title || 'default';
-    // Remove Hebrew and special characters, keep only alphanumeric and underscores
-    const sanitized = title.toLowerCase()
-      .replace(/[^\w\s]/g, '') // Remove special chars except word chars and spaces
-      .replace(/\s+/g, '_') // Replace spaces with underscores
-      .replace(/[^a-z0-9_]/g, '') // Keep only English letters, numbers and underscores
-      .replace(/_+/g, '_') // Replace multiple underscores with single
-      .replace(/^_+|_+$/g, ''); // Remove leading/trailing underscores
-    return sanitized || 'default';
+    
+    // Extract only English letters and numbers, ignore Hebrew and special chars
+    const englishOnly = title.match(/[a-zA-Z0-9]/g);
+    
+    if (englishOnly && englishOnly.length > 0) {
+      return englishOnly.join('').toLowerCase();
+    }
+    
+    // If no English chars found, use a simple hash of the title
+    let hash = 0;
+    for (let i = 0; i < title.length; i++) {
+      const char = title.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    
+    return 'timer_' + Math.abs(hash).toString();
   }
 
   getStorageEntityId() {
