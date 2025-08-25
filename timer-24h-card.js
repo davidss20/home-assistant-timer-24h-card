@@ -156,8 +156,7 @@ class Timer24HCard extends HTMLElement {
 
   checkEntityChanges(oldHass, newHass) {
     try {
-      const cardId = this.generateCardId();
-      const entityId = `input_text.timer_24h_card_${cardId}`;
+      const entityId = this.getStorageEntityId();
       
       const oldEntity = oldHass.states[entityId];
       const newEntity = newHass.states[entityId];
@@ -254,8 +253,7 @@ class Timer24HCard extends HTMLElement {
 
   async checkForUpdates() {
     try {
-      const cardId = this.generateCardId();
-      const entityId = `input_text.timer_24h_card_${cardId}`;
+      const entityId = this.getStorageEntityId();
       
       if (this.hass && this.hass.states[entityId]) {
         const entityState = this.hass.states[entityId];
@@ -423,7 +421,7 @@ class Timer24HCard extends HTMLElement {
       // בדוק אם ה-entity קיים
       if (!this.hass.states[entityId]) {
         console.log(`Timer Card: Entity ${entityId} doesn't exist, creating it...`);
-        await this.ensureEntityExists(cardId, this.config.title || 'Timer 24H');
+        await this.ensureEntityExists(this.config.title || 'Timer 24H');
       }
       
       // שמור את הנתונים
@@ -445,8 +443,8 @@ class Timer24HCard extends HTMLElement {
     }
   }
 
-  async ensureEntityExists(cardId, cardTitle) {
-    const entityId = `input_text.timer_24h_card_${cardId}`;
+  async ensureEntityExists(cardTitle) {
+    const entityId = this.getStorageEntityId();
     
     console.log(`Timer Card: Ensuring entity exists: ${entityId}`);
     
@@ -525,40 +523,15 @@ input_text:
     }
   }
 
-  async createInputTextEntity(cardId, cardTitle) {
-    try {
-      // Try to create the input_text entity dynamically
-      await this.hass.callWS({
-        type: 'config/config_entries/create',
-        domain: 'input_text',
-        data: {
-          name: `Timer 24H Card - ${cardTitle}`,
-          entity_id: `timer_24h_card_${cardId}`,
-          max: 10000,
-          initial: '{}'
-        }
-      });
-      } catch (error) {
-      console.warn('Timer Card: Could not create input_text entity automatically:', error);
-      console.info(`Timer Card: Please create this entity manually in configuration.yaml:
-      
-input_text:
-  timer_24h_card_${cardId}:
-    name: "Timer 24H Card - ${cardTitle}"
-    max: 10000
-    initial: "{}"
-      `);
-    }
-  }
 
-    async loadSavedState() {
+
+  async loadSavedState() {
     if (!this.config?.save_state) return;
     
     console.log('Timer Card: Loading saved state...');
     
     try {
-      const cardId = this.generateCardId();
-      const entityId = `input_text.timer_24h_card_${cardId}`;
+      const entityId = this.getStorageEntityId();
       
       console.log(`Timer Card: Looking for entity: ${entityId}`);
       
@@ -619,8 +592,14 @@ input_text:
   generateCardId() {
     // Generate a unique ID based on the card title and configuration
     const title = this.config.title || 'default';
-    const sanitized = title.toLowerCase().replace(/[^a-z0-9]/g, '_');
-    return `timer_card_${sanitized}`;
+    // Remove Hebrew and special characters, keep only alphanumeric and underscores
+    const sanitized = title.toLowerCase()
+      .replace(/[^\w\s]/g, '') // Remove special chars except word chars and spaces
+      .replace(/\s+/g, '_') // Replace spaces with underscores
+      .replace(/[^a-z0-9_]/g, '') // Keep only English letters, numbers and underscores
+      .replace(/_+/g, '_') // Replace multiple underscores with single
+      .replace(/^_+|_+$/g, ''); // Remove leading/trailing underscores
+    return sanitized || 'default';
   }
 
   getStorageEntityId() {
