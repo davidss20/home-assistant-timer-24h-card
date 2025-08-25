@@ -64,7 +64,7 @@ class Timer24HCard extends HTMLElement {
       home_logic: 'OR',
       entities: [],
       home_sensors: [],
-      save_state: false,
+      save_state: true, // Always save to server
       storage_entity_id: `input_text.${uniqueId}`,
       auto_create_helper: true,
       allow_local_fallback: true
@@ -1129,7 +1129,7 @@ class Timer24HCardEditor extends HTMLElement {
       this._config.home_logic = (config && config.home_logic === 'AND') ? 'AND' : 'OR';
       this._config.entities = [];
       this._config.home_sensors = [];
-      this._config.save_state = (config && config.save_state === true) ? true : false;
+      this._config.save_state = true; // Always save to server
       this._config.storage_entity_id = (config && typeof config.storage_entity_id === 'string' && config.storage_entity_id !== '') 
         ? config.storage_entity_id 
         : this._generateUniqueEntityId();
@@ -1217,22 +1217,22 @@ class Timer24HCardEditor extends HTMLElement {
             '</select>' +
           '</div>' +
 
-          '<div style="margin-bottom: 16px;">' +
-            '<label style="display: flex; align-items: center; gap: 8px;">' +
-              '<input type="checkbox" id="save-state-checkbox"' + (this._config.save_state ? ' checked' : '') + ' />' +
-              '<span style="font-weight: 500;">Save state on server</span>' +
-            '</label>' +
+          '<div style="margin-bottom: 16px; padding: 12px; background: #e8f5e8; border-radius: 4px; border-left: 4px solid #4caf50;">' +
+            '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">' +
+              '<span style="color: #4caf50; font-size: 18px;">✅</span>' +
+              '<span style="font-weight: 500; color: #2e7d32;">Server Storage Enabled</span>' +
+            '</div>' +
+            '<div style="font-size: 13px; color: #2e7d32;">Timer state is automatically saved to Home Assistant server and synced across all devices.</div>' +
           '</div>' +
 
           '<div style="margin-bottom: 16px;">' +
-            '<label style="display: block; margin-bottom: 4px; font-weight: 500;">Storage Entity ID</label>' +
+            '<label style="display: block; margin-bottom: 4px; font-weight: 500;">Storage Entity ID (Auto-Generated)</label>' +
             '<div style="display: flex; gap: 8px;">' +
               '<input type="text" id="storage-entity-input" value="' + (this._config.storage_entity_id || '') + '" ' +
-              'readonly style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5; color: #666;" />' +
-              '<button type="button" id="regenerate-id-btn" style="padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; background: #fff; cursor: pointer;" title="Generate new ID">🔄</button>' +
+              'readonly style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5; color: #666; font-family: monospace; font-size: 12px;" />' +
               '<button type="button" id="delete-helper-btn" style="padding: 8px 12px; border: 1px solid #dc3545; border-radius: 4px; background: #fff; color: #dc3545; cursor: pointer;" title="Delete helper entity">🗑️</button>' +
             '</div>' +
-            '<div style="font-size: 12px; color: #666; margin-top: 4px;">Auto-generated unique ID for server storage. Click 🔄 to generate new ID, 🗑️ to delete helper entity.</div>' +
+            '<div style="font-size: 12px; color: #666; margin-top: 4px;">Unique ID automatically created for this card. Click 🗑️ to delete and reset helper entity.</div>' +
           '</div>' +
 
           '<div style="margin-bottom: 16px;">' +
@@ -1255,9 +1255,7 @@ class Timer24HCardEditor extends HTMLElement {
         try {
           const titleInput = this.querySelector('#title-input');
           const logicSelect = this.querySelector('#logic-select');
-          const saveStateCheckbox = this.querySelector('#save-state-checkbox');
           const storageEntityInput = this.querySelector('#storage-entity-input');
-          const regenerateIdBtn = this.querySelector('#regenerate-id-btn');
           const deleteHelperBtn = this.querySelector('#delete-helper-btn');
           const entitiesInput = this.querySelector('#entities-input');
           const sensorsInput = this.querySelector('#sensors-input');
@@ -1276,23 +1274,7 @@ class Timer24HCardEditor extends HTMLElement {
             });
           }
 
-          if (saveStateCheckbox) {
-            saveStateCheckbox.addEventListener('change', (e) => {
-              this._config.save_state = e.target.checked;
-              this._fireConfigChanged();
-            });
-          }
-
-          if (regenerateIdBtn) {
-            regenerateIdBtn.addEventListener('click', (e) => {
-              const newId = this._generateUniqueEntityId();
-              this._config.storage_entity_id = newId;
-              if (storageEntityInput) {
-                storageEntityInput.value = newId;
-              }
-              this._fireConfigChanged();
-            });
-          }
+          // Always save to server - no toggle needed
 
           if (deleteHelperBtn) {
             deleteHelperBtn.addEventListener('click', async (e) => {
@@ -1318,10 +1300,11 @@ class Timer24HCardEditor extends HTMLElement {
                   });
                 }
                 
-                // Clear the entity ID and regenerate new one
-                this._config.storage_entity_id = this._generateUniqueEntityId();
+                // Generate new unique ID automatically
+                const newId = this._generateUniqueEntityId();
+                this._config.storage_entity_id = newId;
                 if (storageEntityInput) {
-                  storageEntityInput.value = this._config.storage_entity_id;
+                  storageEntityInput.value = newId;
                 }
                 this._fireConfigChanged();
                 
