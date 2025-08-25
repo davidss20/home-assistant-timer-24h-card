@@ -579,6 +579,17 @@ class Timer24HCard extends HTMLElement {
     const centerY = 200;
     const outerRadius = 180;
     const innerRadius = 50;
+    
+    // בדוק אם הטיימר פעיל עכשיו
+    const currentHour = this.currentTime.getHours();
+    const currentMinute = this.currentTime.getMinutes();
+    const minute = currentMinute < 30 ? 0 : 30;
+    
+    const currentSlot = this.timeSlots.find(slot => 
+      slot.hour === currentHour && slot.minute === minute
+    );
+    
+    const isCurrentlyActive = currentSlot?.isActive || false;
 
         const sectors = Array.from({ length: 24 }, (_, hour) => {
       const middleRadius = (innerRadius + outerRadius) / 2;
@@ -659,6 +670,8 @@ class Timer24HCard extends HTMLElement {
         :host {
           display: block;
           font-family: var(--primary-font-family, sans-serif);
+          position: relative;
+          contain: layout style paint;
         }
         
         .card {
@@ -671,6 +684,9 @@ class Timer24HCard extends HTMLElement {
           min-height: 200px;
           display: flex;
           flex-direction: column;
+          position: relative;
+          z-index: 1;
+          isolation: isolate;
         }
         
         .header {
@@ -760,6 +776,24 @@ class Timer24HCard extends HTMLElement {
             
             ${dividerLines}
             ${sectors}
+            
+            <!-- אינדיקטור מרכזי -->
+            <circle cx="${centerX}" cy="${centerY}" r="45" 
+                    fill="${isCurrentlyActive ? 'rgba(239, 68, 68, 0.1)' : 'rgba(107, 114, 128, 0.05)'}" 
+                    stroke="${isCurrentlyActive ? 'rgba(239, 68, 68, 0.3)' : 'rgba(107, 114, 128, 0.2)'}" 
+                    stroke-width="1"/>
+            
+            <text x="${centerX}" y="${centerY - 8}" 
+                  text-anchor="middle" font-size="14" font-weight="bold"
+                  fill="${isCurrentlyActive ? '#ef4444' : '#6b7280'}">
+              ${isCurrentlyActive ? 'פעיל' : 'כבוי'}
+            </text>
+            
+            <text x="${centerX}" y="${centerY + 8}" 
+                  text-anchor="middle" font-size="10"
+                  fill="${isCurrentlyActive ? '#ef4444' : '#6b7280'}">
+              ${this.currentTime.getHours().toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}
+            </text>
           </svg>
         </div>
       </div>
