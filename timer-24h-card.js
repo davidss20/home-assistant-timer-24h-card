@@ -2,22 +2,6 @@
 // Version 2.1.0
 
 class Timer24HCard extends HTMLElement {
-  async bootstrapServerStorage() {
-    if (!this.config || this.config.save_state === false) return;
-    const entityId = this.getStorageEntityId();
-    if (!this.hass.states[entityId]) {
-      try {
-        const cardId = this.generateCardId();
-        await this.ensureEntityExists(cardId, this.config.title || 'Timer 24H');
-      } catch (e) { console.warn('Timer Card: ensureEntityExists failed', e); }
-    }
-    try {
-      const st = this.hass.states[entityId] && this.hass.states[entityId].state;
-      if (!st || st === 'unknown' || st === '') {
-        await this.hass.callService('input_text','set_value',{ entity_id: entityId, value: '{}' });
-      }
-    } catch (e) { console.warn('Timer Card: bootstrap set_value failed', e); }
-  }
 
   constructor() {
     super();
@@ -173,7 +157,7 @@ class Timer24HCard extends HTMLElement {
   checkEntityChanges(oldHass, newHass) {
     try {
       const cardId = this.generateCardId();
-      const entityId = this.getStorageEntityId();
+      const entityId = `input_text.timer_24h_card_${cardId}`;
       
       const oldEntity = oldHass.states[entityId];
       const newEntity = newHass.states[entityId];
@@ -271,7 +255,7 @@ class Timer24HCard extends HTMLElement {
   async checkForUpdates() {
     try {
       const cardId = this.generateCardId();
-      const entityId = this.getStorageEntityId();
+      const entityId = `input_text.timer_24h_card_${cardId}`;
       
       if (this.hass && this.hass.states[entityId]) {
         const entityState = this.hass.states[entityId];
@@ -450,19 +434,19 @@ class Timer24HCard extends HTMLElement {
       
       console.log(`✅ Timer Card: State successfully saved to ${entityId}`);
       
-      // גם שמור ב-localStorage כגיבוי
-      if (this.config.allow_local_fallback !== false) { try { localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(this.timeSlots)); } catch(e){} }
+             // גם שמור ב-localStorage כגיבוי
+       localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(this.timeSlots));
       
     } catch (error) {
       console.error('❌ Timer Card: Failed to save to Home Assistant:', error);
       // Fallback to localStorage
-      if (this.config.allow_local_fallback !== false) { try { localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(this.timeSlots)); } catch(e){} }
+      localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(this.timeSlots));
       console.log('💾 Timer Card: Saved to localStorage as fallback');
     }
   }
 
   async ensureEntityExists(cardId, cardTitle) {
-    const entityId = this.getStorageEntityId();
+    const entityId = `input_text.timer_24h_card_${cardId}`;
     
     console.log(`Timer Card: Ensuring entity exists: ${entityId}`);
     
@@ -568,27 +552,32 @@ input_text:
   }
 
     async loadSavedState() {
+    if (!this.config?.save_state) return;
+    
+    console.log('Timer Card: Loading saved state...');
+    
     try {
-      const entityId = this.getStorageEntityId();
-      const st = this.hass && this.hass.states && this.hass.states[entityId] ? this.hass.states[entityId].state : null;
-      if (st && st !== 'unknown' && st !== '{}') {
-        const data = JSON.parse(st);
-        if (Array.isArray(data.timeSlots)) {
-          this.timeSlots = data.timeSlots;
-          return;
-        }
-      }
-    } catch (e) { console.warn('Timer Card: failed to read server state', e); }
-    if (this.config && this.config.allow_local_fallback !== false) {
-      try {
-        const saved = localStorage.getItem(`timer-24h-${this.config.title}`);
-        if (saved) {
-          const arr = JSON.parse(saved);
-          if (Array.isArray(arr)) this.timeSlots = arr;
-        }
-      } catch (e) { console.warn('Timer Card: failed to read local fallback', e); }
-    }
-  }
+      const cardId = this.generateCardId();
+      const entityId = `input_text.timer_24h_card_${cardId}`;
+      
+      console.log(`Timer Card: Looking for entity: ${entityId}`);
+      
+      // Try to load from Home Assistant input_text entity first
+      if (this.hass && this.hass.states[entityId]) {
+        const entityState = this.hass.states[entityId];
+        const jsonData = entityState.state;
+        
+        console.log(`Timer Card: Found entity with state: ${jsonData?.substring(0, 100)}...`);
+        
+        if (jsonData && jsonData !== 'unknown' && jsonData !== '' && jsonData !== '{}') {
+          try {
+            const data = JSON.parse(jsonData);
+            if (data.timeSlots && Array.isArray(data.timeSlots)) {
+              this.timeSlots = data.timeSlots;
+              console.log(`✅ Timer Card: State loaded from Home Assistant entity: ${entityId}`);
+              console.log(`Timer Card: Loaded ${this.timeSlots.length} time slots`);
+              return;
+            }
           } catch (parseError) {
             console.warn('Timer Card: Failed to parse data from Home Assistant entity:', parseError);
           }
@@ -634,11 +623,7 @@ input_text:
     return `timer_card_${sanitized}`;
   }
 
-  getStorageEntityId() {
-    if (this.config && this.config.storage_entity_id) return this.config.storage_entity_id;
-    const cardId = this.generateCardId();
-    return `input_text.timer_24h_card_${cardId}`;
-  }
+
 
   createSectorPath(hour, totalSectors, innerRadius, outerRadius, centerX, centerY) {
     const startAngle = (hour * 360 / totalSectors - 90) * (Math.PI / 180);
