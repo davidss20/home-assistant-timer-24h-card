@@ -401,141 +401,57 @@ class Timer24HCard extends HTMLElement {
   }
 
   async saveState() {
-    if (!this.config.save_state || !this.hass) return;
+    if (!this.config.save_state) return;
     
     console.log('Timer Card: Attempting to save state...');
     
+    // תמיד שמור ב-localStorage תחילה
     try {
-      const cardId = this.generateCardId();
+      localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(this.timeSlots));
+      console.log('✅ Timer Card: State saved to localStorage');
+    } catch (localError) {
+      console.warn('Timer Card: Failed to save to localStorage:', localError);
+    }
+    
+    // נסה לשמור גם ב-Home Assistant אם יש entity
+    if (!this.hass) return;
+    
+    try {
       const entityId = this.getStorageEntityId();
-      const data = {
-        timeSlots: this.timeSlots,
-        timestamp: Date.now(),
-        version: '2.1.0'
-      };
-      
-      const jsonData = JSON.stringify(data);
-      console.log(`Timer Card: Saving to entity: ${entityId}`);
-      console.log(`Timer Card: Data length: ${jsonData.length} characters`);
       
       // בדוק אם ה-entity קיים
-      if (!this.hass.states[entityId]) {
-        console.log(`Timer Card: Entity ${entityId} doesn't exist, creating it...`);
-        await this.ensureEntityExists(this.config.title || 'Timer 24H');
-      }
-      
-      // שמור את הנתונים
-      await this.hass.callService('input_text', 'set_value', {
-        entity_id: entityId,
-        value: jsonData
-      });
-      
-      console.log(`✅ Timer Card: State successfully saved to ${entityId}`);
-      
-             // גם שמור ב-localStorage כגיבוי
-       localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(this.timeSlots));
-      
-    } catch (error) {
-      console.error('❌ Timer Card: Failed to save to Home Assistant:', error);
-      // Fallback to localStorage
-      localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(this.timeSlots));
-      console.log('💾 Timer Card: Saved to localStorage as fallback');
-    }
-  }
-
-  async ensureEntityExists(cardTitle) {
-    const entityId = this.getStorageEntityId();
-    
-    console.log(`Timer Card: Ensuring entity exists: ${entityId}`);
-    
-    try {
-      // נסה ליצור דרך Helpers API החדש
-      try {
-        console.log('Timer Card: Trying new Helpers API...');
-        const result = await this.hass.callWS({
-          type: 'config/input_text/create',
-          name: `Timer 24H Card - ${cardTitle}`,
-          max: 10000,
-          initial: '{}',
-          mode: 'text'
+      if (this.hass.states[entityId]) {
+        const data = {
+          timeSlots: this.timeSlots,
+          timestamp: Date.now(),
+          version: '2.1.0'
+        };
+        
+        const jsonData = JSON.stringify(data);
+        console.log(`Timer Card: Saving to entity: ${entityId}`);
+        
+        await this.hass.callService('input_text', 'set_value', {
+          entity_id: entityId,
+          value: jsonData
         });
-        console.log(`✅ Timer Card: Successfully created entity via new API:`, result);
         
-        // חכה שהentity יהיה זמין
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        return;
+        console.log(`✅ Timer Card: State also saved to Home Assistant entity`);
         
-      } catch (apiError) {
-        console.warn('Timer Card: New Helpers API failed:', apiError.message || apiError);
-        
-        // נסה דרך הAPI הישן
-        try {
-          console.log('Timer Card: Trying legacy Helpers API...');
-          await this.hass.callWS({
-            type: 'config/helpers/create',
-            domain: 'input_text',
-            data: {
-              name: `Timer 24H Card - ${cardTitle}`,
-              max: 10000,
-              initial: '{}'
-            }
-          });
-          console.log(`✅ Timer Card: Created entity via legacy API`);
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          return;
-          
-        } catch (oldApiError) {
-          console.warn('Timer Card: Legacy API also failed:', oldApiError.message || oldApiError);
-          
-          // נסה דרך service call
-          try {
-            console.log('Timer Card: Trying service call method...');
-            await this.hass.callService('input_text', 'reload', {});
-            console.log('Timer Card: Service call completed, but entity creation is manual');
-          } catch (serviceError) {
-            console.warn('Timer Card: Service call failed:', serviceError.message || serviceError);
-          }
-        }
-      }
-      
-      // אם כל הAPIים נכשלו, הצג הוראות מפורטות
-      const cardId = this.generateCardId();
-      const cleanEntityId = entityId.replace('input_text.', '');
-      
-      const instructions = `
-🔧 Timer Card: יש ליצור entity באופן ידני
-
-📋 אופציה 1 - דרך ה-UI:
-1. עבור ל-Settings → Devices & Services → Helpers
-2. לחץ "Create Helper" → "Text"
-3. Name: Timer 24H Card - ${cardTitle}
-4. Entity ID: ${cleanEntityId}
-5. Maximum length: 10000
-6. Initial value: {}
-
-📋 אופציה 2 - דרך configuration.yaml:
-input_text:
-  ${cleanEntityId}:
-    name: "Timer 24H Card - ${cardTitle}"
-    max: 10000
-    initial: "{}"
-
-אחרי היצירה, רענן את הדף או לחץ על כפתור הסינכרון.
-      `;
-      
-      console.warn(instructions);
-      
-      // הצג alert למשתמש
-      if (typeof alert !== 'undefined') {
-        setTimeout(() => {
-          alert(`Timer Card צריך entity חדש!\n\nעבור ל-Settings → Helpers ויצור Text Helper:\nName: Timer 24H Card - ${cardTitle}\nEntity ID: ${cleanEntityId}\nMax length: 10000\nInitial value: {}`);
-        }, 1000);
+      } else {
+        console.log(`Timer Card: Entity ${entityId} doesn't exist. Using localStorage only.`);
+        console.log(`💡 Timer Card: To enable server sync, create entity manually:`);
+        console.log(`   Settings → Helpers → Text Helper`);
+        console.log(`   Entity ID: ${entityId.replace('input_text.', '')}`);
+        console.log(`   Max length: 10000`);
       }
       
     } catch (error) {
-      console.error('Timer Card: Error in ensureEntityExists:', error);
+      console.warn('Timer Card: Failed to save to Home Assistant:', error.message || error);
+      console.log('💾 Timer Card: Continuing with localStorage only');
     }
   }
+
+
 
 
 
@@ -544,63 +460,54 @@ input_text:
     
     console.log('Timer Card: Loading saved state...');
     
-    try {
-      const entityId = this.getStorageEntityId();
-      
-      console.log(`Timer Card: Looking for entity: ${entityId}`);
-      
-      // Try to load from Home Assistant input_text entity first
-      if (this.hass && this.hass.states[entityId]) {
-        const entityState = this.hass.states[entityId];
-        const jsonData = entityState.state;
+    // נסה לטעון מ-Home Assistant תחילה אם יש entity
+    if (this.hass) {
+      try {
+        const entityId = this.getStorageEntityId();
         
-        console.log(`Timer Card: Found entity with state: ${jsonData?.substring(0, 100)}...`);
-        
-        if (jsonData && jsonData !== 'unknown' && jsonData !== '' && jsonData !== '{}') {
-          try {
-            const data = JSON.parse(jsonData);
-            if (data.timeSlots && Array.isArray(data.timeSlots)) {
-              this.timeSlots = data.timeSlots;
-              console.log(`✅ Timer Card: State loaded from Home Assistant entity: ${entityId}`);
-              console.log(`Timer Card: Loaded ${this.timeSlots.length} time slots`);
-              return;
+        if (this.hass.states[entityId]) {
+          const entityState = this.hass.states[entityId];
+          const jsonData = entityState.state;
+          
+          console.log(`Timer Card: Found entity: ${entityId}`);
+          
+          if (jsonData && jsonData !== 'unknown' && jsonData !== '' && jsonData !== '{}') {
+            try {
+              const data = JSON.parse(jsonData);
+              if (data.timeSlots && Array.isArray(data.timeSlots)) {
+                this.timeSlots = data.timeSlots;
+                console.log(`✅ Timer Card: State loaded from Home Assistant (${this.timeSlots.length} slots)`);
+                return;
+              }
+            } catch (parseError) {
+              console.warn('Timer Card: Failed to parse Home Assistant data:', parseError);
             }
-          } catch (parseError) {
-            console.warn('Timer Card: Failed to parse data from Home Assistant entity:', parseError);
           }
+        } else {
+          console.log(`Timer Card: Entity ${entityId} not found, using localStorage`);
         }
-      } else {
-        console.log(`Timer Card: Entity ${entityId} not found in Home Assistant`);
-        if (this.hass) {
-          console.log('Timer Card: Available entities:', Object.keys(this.hass.states).filter(id => id.includes('timer')));
-        }
+      } catch (error) {
+        console.warn('Timer Card: Failed to load from Home Assistant:', error);
       }
-    } catch (error) {
-      console.warn('Timer Card: Failed to load from Home Assistant entity, trying localStorage:', error);
     }
     
-    // Fallback to localStorage
-    console.log('Timer Card: Trying localStorage fallback...');
-    const saved = localStorage.getItem(`timer-24h-${this.config.title}`);
-    if (saved) {
-      try {
+    // טען מ-localStorage
+    console.log('Timer Card: Loading from localStorage...');
+    try {
+      const saved = localStorage.getItem(`timer-24h-${this.config.title}`);
+      if (saved) {
         const parsedData = JSON.parse(saved);
         if (Array.isArray(parsedData)) {
           this.timeSlots = parsedData;
-          console.log('💾 Timer Card: State loaded from localStorage (fallback)');
-          
-          // Migrate to Home Assistant storage if possible
-          if (this.hass) {
-            console.log('Timer Card: Migrating localStorage data to Home Assistant...');
-            setTimeout(() => this.saveState(), 2000); // Delay to ensure hass is ready
-          }
+          console.log(`✅ Timer Card: State loaded from localStorage (${this.timeSlots.length} slots)`);
+          return;
         }
-      } catch (error) {
-        console.error('Timer Card: Failed to load saved state:', error);
       }
-    } else {
-      console.log('Timer Card: No saved data found in localStorage');
+    } catch (error) {
+      console.warn('Timer Card: Failed to load from localStorage:', error);
     }
+    
+    console.log('Timer Card: No saved data found, using defaults');
   }
 
   generateCardId() {
@@ -782,10 +689,25 @@ input_text:
           color: var(--primary-text-color, #212121);
         }
         
+        .status-container {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 2px;
+        }
+        
         .home-status {
           font-size: 0.7rem;
           text-align: center;
           margin: 0;
+        }
+        
+        .sync-status {
+          font-size: 0.6rem;
+          text-align: center;
+          margin: 0;
+          opacity: 0.8;
+          color: var(--secondary-text-color, #666);
         }
         
         .home-status.home {
@@ -817,8 +739,13 @@ input_text:
       <div class="card">
         <div class="header">
           <div class="title">${this.config.title}</div>
-          <div class="home-status ${this.isAtHome ? 'home' : 'away'}">
-            ${this.isAtHome ? 'בבית' : 'מחוץ לבית'}
+          <div class="status-container">
+            <div class="home-status ${this.isAtHome ? 'home' : 'away'}">
+              ${this.isAtHome ? 'בבית' : 'מחוץ לבית'}
+            </div>
+            <div class="sync-status">
+              ${this.hass && this.hass.states[this.getStorageEntityId()] ? '🔄 סינכרון' : '💾 מקומי'}
+            </div>
           </div>
         </div>
         
