@@ -8,5 +8,6 @@
   "iot_class": "Local Polling",
   "homeassistant": "2023.1.0",
   "zip_release": false,
-  "persistent_directory": false
+  "persistent_directory": false,
+  "icon": "icon.png"
 } 

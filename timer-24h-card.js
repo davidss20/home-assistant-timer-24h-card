@@ -956,6 +956,8 @@ window.customCards.push({
     <circle cx="12" cy="15" r="3.5" stroke="white" stroke-width="1.6" fill="none"/>
     <path d="M12 15l2-2" stroke="white" stroke-width="1.6"/>
   </svg>`,
+  // Alternative PNG icon for HACS
+  iconUrl: './icon.png',
   // Grid layout support
   grid_options: {
     rows: 3,
