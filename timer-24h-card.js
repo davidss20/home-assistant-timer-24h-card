@@ -423,7 +423,7 @@ class Timer24HCard extends HTMLElement {
       // בדוק אם ה-entity קיים
       if (!this.hass.states[entityId]) {
         console.log(`Timer Card: Entity ${entityId} doesn't exist, creating it...`);
-        await this.ensureEntityExists(cardId, this.config.title);
+        await this.ensureEntityExists(cardId, this.config.title || 'Timer 24H');
       }
       
       // שמור את הנתונים
@@ -621,6 +621,12 @@ input_text:
     const title = this.config.title || 'default';
     const sanitized = title.toLowerCase().replace(/[^a-z0-9]/g, '_');
     return `timer_card_${sanitized}`;
+  }
+
+  getStorageEntityId() {
+    if (this.config?.storage_entity_id) return this.config.storage_entity_id;
+    const cardId = this.generateCardId();
+    return `input_text.timer_24h_card_${cardId}`;
   }
 
 

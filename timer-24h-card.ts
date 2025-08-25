@@ -41,7 +41,7 @@ const CARD_CONFIG_SCHEMA: Record<string, SchemaProperty> = {
   home_sensors: { type: 'array', optional: true },
   home_logic: { type: 'string', enum: ['OR', 'AND'], optional: true },
   entities: { type: 'array', optional: true },
-  save_state: { type: 'boolean', optional: true ,
+  save_state: { type: 'boolean', optional: true },
   storage_entity_id: { type: 'string', optional: true },
   auto_create_helper: { type: 'boolean', optional: true },
   allow_local_fallback: { type: 'boolean', optional: true }
