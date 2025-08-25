@@ -17,9 +17,9 @@ class Timer24HCard extends HTMLElement {
     
     // Initialize layout property immediately
     this.layout = {
-      grid_rows: 2,
-      grid_columns: 6,
-      grid_min_rows: 2,
+      grid_rows: 3,
+      grid_columns: 3,
+      grid_min_rows: 3,
       grid_min_columns: 3
     };
   }
@@ -47,9 +47,9 @@ class Timer24HCard extends HTMLElement {
   // Grid layout support - NEW Home Assistant sections
   static getLayoutOptions() {
     return {
-      grid_rows: 2,
-      grid_columns: 6,
-      grid_min_rows: 2,
+      grid_rows: 3,
+      grid_columns: 3,
+      grid_min_rows: 3,
       grid_min_columns: 3
     };
   }
@@ -57,9 +57,9 @@ class Timer24HCard extends HTMLElement {
   // Layout property for grid sections
   get layout() {
     return {
-      grid_rows: 2,
-      grid_columns: 6,
-      grid_min_rows: 2,
+      grid_rows: 3,
+      grid_columns: 3,
+      grid_min_rows: 3,
       grid_min_columns: 3
     };
   }
@@ -71,9 +71,9 @@ class Timer24HCard extends HTMLElement {
     } else {
       // Fallback to default layout
       this._layout = {
-        grid_rows: 2,
-        grid_columns: 6,
-        grid_min_rows: 2,
+        grid_rows: 3,
+        grid_columns: 3,
+        grid_min_rows: 3,
         grid_min_columns: 3
       };
     }
@@ -82,9 +82,9 @@ class Timer24HCard extends HTMLElement {
   // Additional layout methods for compatibility
   getLayoutOptions() {
     return {
-      grid_rows: 2,
-      grid_columns: 6,
-      grid_min_rows: 2,
+      grid_rows: 3,
+      grid_columns: 3,
+      grid_min_rows: 3,
       grid_min_columns: 3
     };
   }
@@ -164,9 +164,9 @@ class Timer24HCard extends HTMLElement {
     // Ensure layout is set for grid sections
     if (!this.layout) {
       this.layout = {
-        grid_rows: 2,
-        grid_columns: 6,
-        grid_min_rows: 2,
+        grid_rows: 3,
+        grid_columns: 3,
+        grid_min_rows: 3,
         grid_min_columns: 3
       };
     }
@@ -814,9 +814,9 @@ window.customCards.push({
   documentationURL: 'https://github.com/davidss20/home-assistant-timer-card',
   // Grid layout support
   grid_options: {
-    rows: 2,
-    columns: 6,
-    min_rows: 2,
+    rows: 3,
+    columns: 3,
+    min_rows: 3,
     min_columns: 3
   }
 });
@@ -825,9 +825,9 @@ window.customCards.push({
 if (Timer24HCard && Timer24HCard.prototype) {
   Timer24HCard.prototype.getLayoutOptions = Timer24HCard.prototype.getLayoutOptions || function() {
     return {
-      grid_rows: 2,
-      grid_columns: 6,
-      grid_min_rows: 2,
+      grid_rows: 3,
+      grid_columns: 3,
+      grid_min_rows: 3,
       grid_min_columns: 3
     };
   };
@@ -835,9 +835,9 @@ if (Timer24HCard && Timer24HCard.prototype) {
   // Static layout options for Home Assistant
   Timer24HCard.getLayoutOptions = Timer24HCard.getLayoutOptions || function() {
     return {
-      grid_rows: 2,
-      grid_columns: 6,
-      grid_min_rows: 2,
+      grid_rows: 3,
+      grid_columns: 3,
+      grid_min_rows: 3,
       grid_min_columns: 3
     };
   };
@@ -847,9 +847,9 @@ if (Timer24HCard && Timer24HCard.prototype) {
     Object.defineProperty(Timer24HCard.prototype, 'layout', {
       get: function() {
         return this._layout || {
-          grid_rows: 2,
-          grid_columns: 6,
-          grid_min_rows: 2,
+          grid_rows: 3,
+          grid_columns: 3,
+          grid_min_rows: 3,
           grid_min_columns: 3
         };
       },
@@ -858,9 +858,9 @@ if (Timer24HCard && Timer24HCard.prototype) {
           this._layout = { ...value };
         } else {
           this._layout = {
-            grid_rows: 2,
-            grid_columns: 6,
-            grid_min_rows: 2,
+            grid_rows: 3,
+            grid_columns: 3,
+            grid_min_rows: 3,
             grid_min_columns: 3
           };
         }
