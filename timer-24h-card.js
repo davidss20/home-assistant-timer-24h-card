@@ -122,7 +122,6 @@ class Timer24HCard extends HTMLElement {
 
     set hass(hass) {
     const wasHassAvailable = !!this._hass;
-    const oldHass = this._hass;
     this._hass = hass;
     
     if (hass) {
@@ -134,11 +133,6 @@ class Timer24HCard extends HTMLElement {
       }
       
       this.updateCurrentTime();
-      
-      // בדוק שינויים ב-storage entity
-      if (this.config?.save_state && oldHass && hass) {
-        this.checkEntityChanges(oldHass, hass);
-      }
       
       // אם hass לא היה זמין קודם, טען נתונים שמורים עכשיו
       if (!wasHassAvailable && this.config?.save_state) {
@@ -154,42 +148,7 @@ class Timer24HCard extends HTMLElement {
     }
   }
 
-  checkEntityChanges(oldHass, newHass) {
-    try {
-      const entityId = this.getStorageEntityId();
-      
-      const oldEntity = oldHass.states[entityId];
-      const newEntity = newHass.states[entityId];
-      
-      if (oldEntity && newEntity && oldEntity.state !== newEntity.state) {
-        console.log('Timer Card: Detected entity change, syncing from server...');
-        this.syncFromEntity(newEntity);
-      }
-    } catch (error) {
-      console.warn('Timer Card: Error checking entity changes:', error);
-    }
-  }
 
-  async syncFromEntity(entity) {
-    try {
-      if (entity.state && entity.state !== 'unknown' && entity.state !== '') {
-        const data = JSON.parse(entity.state);
-        if (data.timeSlots && Array.isArray(data.timeSlots)) {
-          // בדוק אם יש שינוי אמיתי
-          const currentDataStr = JSON.stringify(this.timeSlots);
-          const serverDataStr = JSON.stringify(data.timeSlots);
-          
-          if (currentDataStr !== serverDataStr) {
-            console.log('Timer Card: Syncing data from another device');
-            this.timeSlots = data.timeSlots;
-            this.render();
-          }
-        }
-      }
-    } catch (error) {
-      console.warn('Timer Card: Error syncing from entity:', error);
-    }
-  }
 
   get hass() {
     return this._hass;
@@ -198,6 +157,9 @@ class Timer24HCard extends HTMLElement {
   connectedCallback() {
     super.connectedCallback && super.connectedCallback();
     this.startTimer();
+    
+    // הגדר סינכרון אוטומטי
+    this.setupAutoSync();
     
     // Ensure layout is set for grid sections
     if (!this.layout) {
@@ -210,10 +172,47 @@ class Timer24HCard extends HTMLElement {
     }
   }
 
+  setupAutoSync() {
+    // סינכרון כל דקה עם השרת
+    if (this.syncInterval) {
+      clearInterval(this.syncInterval);
+    }
+    
+    this.syncInterval = setInterval(async () => {
+      if (this.config?.save_state && this.hass && this.hass.connection) {
+        try {
+          const storageKey = `timer_24h_card_${this.generateCardId()}`;
+          const result = await this.hass.connection.sendMessagePromise({
+            type: 'frontend/get_user_data',
+            key: storageKey
+          });
+          
+          if (result && result.value && result.value.timeSlots) {
+            // בדוק אם יש שינויים מהשרת
+            const serverDataStr = JSON.stringify(result.value.timeSlots);
+            const localDataStr = JSON.stringify(this.timeSlots);
+            
+            if (serverDataStr !== localDataStr && result.value.timestamp > (this.lastSyncTime || 0)) {
+              console.log('Timer Card: Syncing changes from server...');
+              this.timeSlots = result.value.timeSlots;
+              this.lastSyncTime = result.value.timestamp;
+              this.render();
+            }
+          }
+        } catch (error) {
+          // שקט - לא צריך לוג לשגיאות סינכרון
+        }
+      }
+    }, 60000); // כל דקה
+  }
+
   disconnectedCallback() {
     super.disconnectedCallback && super.disconnectedCallback();
     if (this.updateInterval) {
       clearInterval(this.updateInterval);
+    }
+    if (this.syncInterval) {
+      clearInterval(this.syncInterval);
     }
   }
 
@@ -243,45 +242,10 @@ class Timer24HCard extends HTMLElement {
     
     this.updateInterval = setInterval(() => {
       this.updateCurrentTime();
-      
-      // בדוק סינכרון כל 2 דקות
-      if (this.config?.save_state && this.hass) {
-        this.checkForUpdates();
-      }
     }, 120000); // Check every 2 minutes
   }
 
-  async checkForUpdates() {
-    try {
-      const entityId = this.getStorageEntityId();
-      
-      if (this.hass && this.hass.states[entityId]) {
-        const entityState = this.hass.states[entityId];
-        const jsonData = entityState.state;
-        
-        if (jsonData && jsonData !== 'unknown' && jsonData !== '') {
-          try {
-            const data = JSON.parse(jsonData);
-            if (data.timeSlots && Array.isArray(data.timeSlots)) {
-              // בדוק אם יש שינויים
-              const currentDataStr = JSON.stringify(this.timeSlots);
-              const serverDataStr = JSON.stringify(data.timeSlots);
-              
-              if (currentDataStr !== serverDataStr) {
-                console.log('Timer Card: Detected changes from another device, syncing...');
-                this.timeSlots = data.timeSlots;
-                this.render();
-              }
-            }
-          } catch (parseError) {
-            console.warn('Timer Card: Failed to parse sync data:', parseError);
-          }
-        }
-      }
-    } catch (error) {
-      console.warn('Timer Card: Failed to check for updates:', error);
-    }
-  }
+
 
   checkHomeStatus() {
     if (!this.hass || !this.config.home_sensors?.length) {
@@ -403,51 +367,75 @@ class Timer24HCard extends HTMLElement {
   async saveState() {
     if (!this.config.save_state) return;
     
-    console.log('Timer Card: Attempting to save state...');
-    
-    // תמיד שמור ב-localStorage תחילה
-    try {
-      localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(this.timeSlots));
-      console.log('✅ Timer Card: State saved to localStorage');
-    } catch (localError) {
-      console.warn('Timer Card: Failed to save to localStorage:', localError);
-    }
-    
-    // נסה לשמור גם ב-Home Assistant אם יש entity
-    if (!this.hass) return;
+    console.log('Timer Card: Saving state...');
     
     try {
-      const entityId = this.getStorageEntityId();
+      // שימוש ב-Home Assistant Frontend Storage - מסונכרן אוטומטית!
+      const storageKey = `timer_24h_card_${this.generateCardId()}`;
+      const data = {
+        timeSlots: this.timeSlots,
+        timestamp: Date.now(),
+        version: '2.1.0'
+      };
       
-      // בדוק אם ה-entity קיים
-      if (this.hass.states[entityId]) {
-        const data = {
-          timeSlots: this.timeSlots,
-          timestamp: Date.now(),
-          version: '2.1.0'
-        };
-        
-        const jsonData = JSON.stringify(data);
-        console.log(`Timer Card: Saving to entity: ${entityId}`);
-        
-        await this.hass.callService('input_text', 'set_value', {
-          entity_id: entityId,
-          value: jsonData
-        });
-        
-        console.log(`✅ Timer Card: State also saved to Home Assistant entity`);
-        
-      } else {
-        console.log(`Timer Card: Entity ${entityId} doesn't exist. Using localStorage only.`);
-        console.log(`💡 Timer Card: To enable server sync, create entity manually:`);
-        console.log(`   Settings → Helpers → Text Helper`);
-        console.log(`   Entity ID: ${entityId.replace('input_text.', '')}`);
-        console.log(`   Max length: 10000`);
+      // שמירה דרך ה-Home Assistant connection
+      if (this.hass && this.hass.connection) {
+        try {
+          this.lastSyncTime = data.timestamp; // שמור זמן הסינכרון
+          await this.hass.connection.sendMessagePromise({
+            type: 'frontend/set_user_data',
+            key: storageKey,
+            value: data
+          });
+          console.log('✅ Timer Card: State saved to Home Assistant user data (synced across devices)');
+          return;
+        } catch (frontendError) {
+          console.warn('Timer Card: Frontend storage failed, trying alternative method:', frontendError);
+        }
       }
       
+      // שיטה חלופית: שימוש ב-persistent_notification כ-storage
+      if (this.hass) {
+        try {
+          const notificationId = `timer_24h_card_data_${this.generateCardId()}`;
+          
+          // מחק notification קודם אם קיים
+          try {
+            await this.hass.callService('persistent_notification', 'dismiss', {
+              notification_id: notificationId
+            });
+          } catch (e) {
+            // לא נורא אם לא קיים
+          }
+          
+          // צור notification חדש עם הנתונים (מוסתר)
+          await this.hass.callService('persistent_notification', 'create', {
+            notification_id: notificationId,
+            title: `Timer Card Data - ${this.config.title}`,
+            message: JSON.stringify(data),
+            // הוסף metadata שמסמן שזה נתונים פנימיים
+            data: {
+              timer_card_internal: true,
+              hidden: true
+            }
+          });
+          
+          console.log('✅ Timer Card: State saved via persistent notification (synced)');
+          return;
+          
+        } catch (notificationError) {
+          console.warn('Timer Card: Notification storage failed:', notificationError);
+        }
+      }
+      
+      // Fallback ל-localStorage
+      localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(this.timeSlots));
+      console.log('💾 Timer Card: Fallback to localStorage (device-only)');
+      
     } catch (error) {
-      console.warn('Timer Card: Failed to save to Home Assistant:', error.message || error);
-      console.log('💾 Timer Card: Continuing with localStorage only');
+      console.error('Timer Card: All save methods failed:', error);
+      // Last resort
+      localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(this.timeSlots));
     }
   }
 
@@ -460,39 +448,53 @@ class Timer24HCard extends HTMLElement {
     
     console.log('Timer Card: Loading saved state...');
     
-    // נסה לטעון מ-Home Assistant תחילה אם יש entity
     if (this.hass) {
       try {
-        const entityId = this.getStorageEntityId();
+        const storageKey = `timer_24h_card_${this.generateCardId()}`;
         
-        if (this.hass.states[entityId]) {
-          const entityState = this.hass.states[entityId];
-          const jsonData = entityState.state;
+        // נסה לטעון מ-Home Assistant Frontend Storage
+        if (this.hass.connection) {
+          try {
+            const result = await this.hass.connection.sendMessagePromise({
+              type: 'frontend/get_user_data',
+              key: storageKey
+            });
+            
+            if (result && result.value && result.value.timeSlots) {
+              this.timeSlots = result.value.timeSlots;
+              console.log(`✅ Timer Card: State loaded from Home Assistant user data (${this.timeSlots.length} slots)`);
+              return;
+            }
+          } catch (frontendError) {
+            console.warn('Timer Card: Frontend storage load failed:', frontendError);
+          }
+        }
+        
+        // שיטה חלופית: טען מ-persistent_notification
+        try {
+          const notificationId = `timer_24h_card_data_${this.generateCardId()}`;
           
-          console.log(`Timer Card: Found entity: ${entityId}`);
-          
-          if (jsonData && jsonData !== 'unknown' && jsonData !== '' && jsonData !== '{}') {
-            try {
-              const data = JSON.parse(jsonData);
-              if (data.timeSlots && Array.isArray(data.timeSlots)) {
-                this.timeSlots = data.timeSlots;
-                console.log(`✅ Timer Card: State loaded from Home Assistant (${this.timeSlots.length} slots)`);
-                return;
-              }
-            } catch (parseError) {
-              console.warn('Timer Card: Failed to parse Home Assistant data:', parseError);
+          // בדוק אם יש notification עם הנתונים
+          const notifications = this.hass.states['persistent_notification.' + notificationId];
+          if (notifications && notifications.attributes && notifications.attributes.message) {
+            const data = JSON.parse(notifications.attributes.message);
+            if (data.timeSlots && Array.isArray(data.timeSlots)) {
+              this.timeSlots = data.timeSlots;
+              console.log(`✅ Timer Card: State loaded from persistent notification (${this.timeSlots.length} slots)`);
+              return;
             }
           }
-        } else {
-          console.log(`Timer Card: Entity ${entityId} not found, using localStorage`);
+        } catch (notificationError) {
+          console.warn('Timer Card: Notification load failed:', notificationError);
         }
+        
       } catch (error) {
-        console.warn('Timer Card: Failed to load from Home Assistant:', error);
+        console.warn('Timer Card: Home Assistant load failed:', error);
       }
     }
     
-    // טען מ-localStorage
-    console.log('Timer Card: Loading from localStorage...');
+    // Fallback ל-localStorage
+    console.log('Timer Card: Loading from localStorage fallback...');
     try {
       const saved = localStorage.getItem(`timer-24h-${this.config.title}`);
       if (saved) {
@@ -504,7 +506,7 @@ class Timer24HCard extends HTMLElement {
         }
       }
     } catch (error) {
-      console.warn('Timer Card: Failed to load from localStorage:', error);
+      console.warn('Timer Card: localStorage load failed:', error);
     }
     
     console.log('Timer Card: No saved data found, using defaults');
@@ -532,11 +534,7 @@ class Timer24HCard extends HTMLElement {
     return 'timer_' + Math.abs(hash).toString();
   }
 
-  getStorageEntityId() {
-    if (this.config?.storage_entity_id) return this.config.storage_entity_id;
-    const cardId = this.generateCardId();
-    return `input_text.timer_24h_card_${cardId}`;
-  }
+
 
 
 
@@ -744,7 +742,7 @@ class Timer24HCard extends HTMLElement {
               ${this.isAtHome ? 'בבית' : 'מחוץ לבית'}
             </div>
             <div class="sync-status">
-              ${this.hass && this.hass.states[this.getStorageEntityId()] ? '🔄 סינכרון' : '💾 מקומי'}
+              ${this.hass && this.hass.connection ? '🌐 מסונכרן' : '💾 מקומי'}
             </div>
           </div>
         </div>
