@@ -825,6 +825,8 @@ class Timer24HCard extends HTMLElement {
           font-size: 1rem;
           font-weight: bold;
           color: var(--primary-text-color, #212121);
+          display: flex;
+          align-items: center;
         }
         
         .status-container {
@@ -876,7 +878,17 @@ class Timer24HCard extends HTMLElement {
       
       <div class="card">
         <div class="header">
-          <div class="title">${this.config.title}</div>
+          <div class="title">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1.2em" height="1.2em" 
+                 style="margin-right: 8px; vertical-align: middle;" role="img" aria-label="Home timer icon" 
+                 fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 11l8-6 8 6v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" fill="#41BDF5" stroke="#41BDF5"/>
+              <path d="M11 9h2" stroke="white" stroke-width="1.6"/>
+              <circle cx="12" cy="15" r="3.5" stroke="white" stroke-width="1.6" fill="none"/>
+              <path d="M12 15l2-2" stroke="white" stroke-width="1.6"/>
+            </svg>
+            ${this.config.title}
+          </div>
           <div class="status-container">
             <div class="home-status ${this.isAtHome ? 'home' : 'away'}">
               ${this.isAtHome ? 'בבית' : 'מחוץ לבית'}
@@ -937,6 +949,13 @@ window.customCards.push({
   preview: true,
   documentationURL: 'https://github.com/davidss20/home-assistant-timer-card',
   configurable: true, // This tells HA that the card has a GUI editor
+  // Custom icon for HACS and card picker
+  icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" role="img" aria-label="Home timer icon" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 11l8-6 8 6v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" fill="#41BDF5" stroke="#41BDF5"/>
+    <path d="M11 9h2" stroke="white" stroke-width="1.6"/>
+    <circle cx="12" cy="15" r="3.5" stroke="white" stroke-width="1.6" fill="none"/>
+    <path d="M12 15l2-2" stroke="white" stroke-width="1.6"/>
+  </svg>`,
   // Grid layout support
   grid_options: {
     rows: 3,
