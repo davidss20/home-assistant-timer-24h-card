@@ -26,16 +26,24 @@ class Timer24HCard extends HTMLElement {
 
   // Home Assistant required methods
   static getConfigElement() {
+    // Dynamically import the editor
+    import('./timer-24h-card-editor.js').catch(() => {
+      // Fallback if module loading fails
+      console.warn('Timer Card: Editor module not found, loading inline...');
+    });
     return document.createElement('timer-24h-card-editor');
   }
 
   static getStubConfig() {
     return {
-      title: 'טיימר 24 שעות',
-      home_sensors: [],
+      title: 'Timer 24H',
       home_logic: 'OR',
       entities: [],
-      save_state: true
+      home_sensors: [],
+      save_state: false,
+      storage_entity_id: '',
+      auto_create_helper: true,
+      allow_local_fallback: true
     };
   }
 
@@ -534,6 +542,89 @@ class Timer24HCard extends HTMLElement {
     return 'timer_' + Math.abs(hash).toString();
   }
 
+  // Persistence helper methods for editor
+  static async ensureStorageEntity(hass, desiredId) {
+    try {
+      const entityId = desiredId || `input_text.timer_24h_card_${Date.now()}`;
+      
+      // Check if entity already exists
+      if (hass.states[entityId]) {
+        return entityId;
+      }
+
+      // Try to create via WebSocket API
+      try {
+        await hass.callWS({
+          type: 'config/input_text/create',
+          name: 'Timer 24H Card Storage',
+          max: 10000,
+          initial: '{}',
+          entity_id: entityId.replace('input_text.', '')
+        });
+        
+        // Wait for entity to be available
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return entityId;
+        
+      } catch (wsError) {
+        // Try alternative API
+        await hass.callWS({
+          type: 'config/helpers/create',
+          domain: 'input_text',
+          data: {
+            name: 'Timer 24H Card Storage',
+            max: 10000,
+            initial: '{}'
+          }
+        });
+        
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return entityId;
+      }
+      
+    } catch (error) {
+      throw new Error(`Cannot create storage entity: ${error.message}. Please create an input_text helper manually.`);
+    }
+  }
+
+  static async readStorage(hass, entityId) {
+    try {
+      const entity = hass.states[entityId];
+      if (!entity) {
+        throw new Error(`Storage entity ${entityId} not found`);
+      }
+      
+      const data = entity.state;
+      if (!data || data === 'unknown' || data === '') {
+        return {};
+      }
+      
+      return JSON.parse(data);
+    } catch (error) {
+      console.warn('Timer Card: Failed to read storage:', error);
+      return {};
+    }
+  }
+
+  static async writeStorage(hass, entityId, data) {
+    try {
+      const jsonData = JSON.stringify(data);
+      
+      // Check size limit (8KB)
+      if (jsonData.length > 8192) {
+        throw new Error('Data too large (>8KB). Please reduce configuration size.');
+      }
+      
+      await hass.callService('input_text', 'set_value', {
+        entity_id: entityId,
+        value: jsonData
+      });
+      
+    } catch (error) {
+      throw new Error(`Failed to write storage: ${error.message}`);
+    }
+  }
+
 
 
 
@@ -811,7 +902,7 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: 'timer-24h-card',
   name: 'Timer 24H Card',
-  description: 'כרטיס טיימר 24 שעות עם בקרה אוטומטית על ישויות',
+  description: '24h timer with UI-based entity selection and automatic server sync',
   preview: true,
   documentationURL: 'https://github.com/davidss20/home-assistant-timer-card',
   // Grid layout support

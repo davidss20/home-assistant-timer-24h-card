@@ -1,17 +1,80 @@
 // Timer 24H Card Editor for Home Assistant
+// Full Lovelace GUI Editor with Entity Selection
+
+// Minimal TypeScript-like interfaces for better code organization
+/**
+ * @typedef {Object} HomeAssistant
+ * @property {Object} states - All HA entity states
+ * @property {Function} callService - Call HA service
+ * @property {Function} callWS - Call HA WebSocket API
+ */
+
+/**
+ * @typedef {Object} HassEntity
+ * @property {string} entity_id - Entity ID
+ * @property {string} state - Entity state
+ * @property {Object} attributes - Entity attributes
+ */
+
+/**
+ * @typedef {Object} CardConfig
+ * @property {string} title - Card title
+ * @property {string} home_logic - Home logic (AND/OR)
+ * @property {string[]} entities - Controlled entities
+ * @property {string[]} home_sensors - Home sensors
+ * @property {boolean} save_state - Save state on server
+ * @property {string} storage_entity_id - Storage entity ID
+ * @property {boolean} auto_create_helper - Auto create helper
+ * @property {boolean} allow_local_fallback - Allow local fallback
+ */
 
 class Timer24HCardEditor extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
-    this.entityFilter = '';
+    
+    // Internal state
+    this._config = {};
+    this._hass = null;
+    this._configErrors = {};
+    this._isCreatingEntity = false;
+    this._isSyncing = false;
+    this._debounceTimer = null;
+    
+    // Entity filters
+    this.CONTROLLED_DOMAINS = ['switch', 'light', 'input_boolean', 'climate', 'script', 'fan', 'cover'];
+    this.SENSOR_DOMAINS = ['binary_sensor', 'sensor', 'person', 'zone', 'input_boolean', 'device_tracker'];
   }
 
+  /**
+   * Set configuration from Home Assistant
+   * @param {CardConfig} config 
+   */
   setConfig(config) {
-    this.config = { ...config };
+    if (!config) {
+      throw new Error('Invalid configuration: config is required');
+    }
+
+    // Validate and normalize config
+    this._config = {
+      title: config.title || 'Timer 24H',
+      home_logic: config.home_logic || 'OR',
+      entities: Array.isArray(config.entities) ? config.entities : [],
+      home_sensors: Array.isArray(config.home_sensors) ? config.home_sensors : [],
+      save_state: Boolean(config.save_state),
+      storage_entity_id: config.storage_entity_id || '',
+      auto_create_helper: config.auto_create_helper !== false,
+      allow_local_fallback: config.allow_local_fallback !== false
+    };
+
+    this._validateConfig();
     this.render();
   }
 
+  /**
+   * Set Home Assistant instance
+   * @param {HomeAssistant} hass 
+   */
   set hass(hass) {
     this._hass = hass;
     this.render();
@@ -21,449 +84,702 @@ class Timer24HCardEditor extends HTMLElement {
     return this._hass;
   }
 
-  handleTitleChange(ev) {
-    this.config.title = ev.target.value;
-    this.fireConfigChanged();
-  }
+  /**
+   * Validate configuration and set errors
+   */
+  _validateConfig() {
+    this._configErrors = {};
 
-  handleSensorChange(ev) {
-    const entityId = ev.target.entityId;
-    const isChecked = ev.target.checked;
-    
-    this.config.home_sensors = this.config.home_sensors || [];
-    
-    if (isChecked) {
-      if (!this.config.home_sensors.includes(entityId)) {
-        this.config.home_sensors.push(entityId);
-      }
-    } else {
-      this.config.home_sensors = this.config.home_sensors.filter(id => id !== entityId);
+    // Validate title
+    if (typeof this._config.title !== 'string' || this._config.title.length === 0) {
+      this._configErrors.title = 'Title is required';
     }
-    
-    this.fireConfigChanged();
-  }
 
-  handleLogicChange(ev) {
-    this.config.home_logic = ev.target.value;
-    this.fireConfigChanged();
-  }
-
-  handleEntityChange(ev) {
-    const entityId = ev.target.entityId;
-    const isChecked = ev.target.checked;
-    
-    this.config.entities = this.config.entities || [];
-    
-    if (isChecked) {
-      if (!this.config.entities.includes(entityId)) {
-        this.config.entities.push(entityId);
-      }
-    } else {
-      this.config.entities = this.config.entities.filter(id => id !== entityId);
+    // Validate home_logic
+    if (!['AND', 'OR'].includes(this._config.home_logic)) {
+      this._configErrors.home_logic = 'Home logic must be AND or OR';
     }
-    
-    this.fireConfigChanged();
+
+    // Validate entities exist (if hass is available)
+    if (this._hass) {
+      const invalidEntities = this._config.entities.filter(id => !this._hass.states[id]);
+      if (invalidEntities.length > 0) {
+        this._configErrors.entities = `Missing entities: ${invalidEntities.join(', ')}`;
+      }
+
+      const invalidSensors = this._config.home_sensors.filter(id => !this._hass.states[id]);
+      if (invalidSensors.length > 0) {
+        this._configErrors.home_sensors = `Missing sensors: ${invalidSensors.join(', ')}`;
+      }
+    }
   }
 
-  handleSaveStateChange(ev) {
-    this.config.save_state = ev.target.checked;
-    this.fireConfigChanged();
-  }
+  /**
+   * Get filtered entities by domain
+   * @param {string[]} domains - Allowed domains
+   * @returns {HassEntity[]}
+   */
+  _getEntitiesByDomains(domains) {
+    if (!this._hass || !this._hass.states) return [];
 
-  forceSyncFromServer() {
-    // מצא את הכרטיס הראשי ואלץ סינכרון
-    const timerCard = document.querySelector('timer-24h-card');
-    if (timerCard && timerCard.loadSavedState) {
-      console.log('Timer Card Editor: Forcing sync from server...');
-      timerCard.loadSavedState().then(() => {
-        console.log('Timer Card Editor: Sync completed');
-        alert('סינכרון הושלם מהשרת!');
+    return Object.values(this._hass.states)
+      .filter(entity => domains.includes(entity.entity_id.split('.')[0]))
+      .sort((a, b) => {
+        const nameA = a.attributes.friendly_name || a.entity_id;
+        const nameB = b.attributes.friendly_name || b.entity_id;
+        return nameA.localeCompare(nameB);
       });
-    }
   }
 
-  async createStorageEntity() {
-    const timerCard = document.querySelector('timer-24h-card');
-    if (timerCard && timerCard.hass && timerCard.config) {
-      const cardId = timerCard.generateCardId();
-      const entityId = `input_text.timer_24h_card_${cardId}`;
-      
-      try {
-        // נסה ליצור דרך Helpers API
-        const result = await timerCard.hass.callWS({
-          type: 'config/input_text/create',
-          name: `Timer 24H Card - ${timerCard.config.title}`,
-          max: 10000,
-          initial: '{}',
-          mode: 'text'
-        });
-        
-        console.log('Timer Card Editor: Entity created successfully', result);
-        alert(`Entity נוצר בהצלחה!\n${entityId}\n\nעכשיו הסינכרון יעבוד בין כל המכשירים.`);
-        
-        // נסה לשמור מיד
-        setTimeout(() => {
-          timerCard.saveState();
-        }, 2000);
-        
-      } catch (error) {
-        console.error('Timer Card Editor: Failed to create entity', error);
-        alert(`לא הצלחתי ליצור את ה-entity אוטומטית.\n\nאנא צור אותו ידנית:\n\n1. עבור ל-Settings → Helpers\n2. Create Helper → Text\n3. Name: Timer 24H Card - ${timerCard.config.title}\n4. Entity ID: ${entityId}\n5. Max length: 10000`);
-      }
+  /**
+   * Handle input changes with debouncing
+   * @param {string} key - Config key
+   * @param {any} value - New value
+   */
+  _handleConfigChange(key, value) {
+    // Clear previous debounce timer
+    if (this._debounceTimer) {
+      clearTimeout(this._debounceTimer);
     }
+
+    // Update config immediately for UI responsiveness
+    this._config[key] = value;
+    this._validateConfig();
+
+    // Debounce the actual config change event
+    this._debounceTimer = setTimeout(() => {
+      this._fireConfigChanged();
+    }, 200);
   }
 
-  fireConfigChanged() {
+  /**
+   * Fire config-changed event
+   */
+  _fireConfigChanged() {
     const event = new CustomEvent('config-changed', {
-      detail: { config: this.config },
+      detail: { config: { ...this._config } },
       bubbles: true,
       composed: true
     });
     this.dispatchEvent(event);
   }
 
-  getEntityIcon(domain) {
-    const icons = {
-      'sensor': '📊',
-      'binary_sensor': '🔘',
-      'person': '👤',
-      'device_tracker': '📱',
-      'input_boolean': '🔘',
-      'light': '💡',
-      'switch': '🔌',
-      'fan': '💨',
-      'climate': '🌡️',
-      'media_player': '📺',
-      'cover': '🪟'
-    };
-    return icons[domain] || '🔧';
+  /**
+   * Create storage entity
+   */
+  async _createStorageEntity() {
+    if (!this._hass || this._isCreatingEntity) return;
+
+    this._isCreatingEntity = true;
+    this.render(); // Show spinner
+
+    try {
+      // Import the main card class to access static methods
+      const Timer24HCard = customElements.get('timer-24h-card');
+      if (!Timer24HCard) {
+        throw new Error('Timer 24H Card not loaded');
+      }
+
+      const entityId = await Timer24HCard.ensureStorageEntity(this._hass);
+      
+      this._config.storage_entity_id = entityId;
+      this._showToast('Storage entity created successfully!', 'success');
+      this._fireConfigChanged();
+
+    } catch (error) {
+      console.error('Failed to create storage entity:', error);
+      this._showToast(`Failed to create entity: ${error.message}`, 'error');
+    } finally {
+      this._isCreatingEntity = false;
+      this.render();
+    }
   }
 
-  render() {
-    if (!this.hass) {
-      this.shadowRoot.innerHTML = `
-        <style>
-          .loading {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-          }
-          .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 2s linear infinite;
-          }
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        </style>
-        <div class="loading">
-          <div class="spinner"></div>
-          <p>טוען ישויות Home Assistant...</p>
-        </div>
-      `;
-      return;
+  /**
+   * Load saved state from server
+   */
+  async _loadSavedState() {
+    if (!this._hass || !this._config.storage_entity_id || this._isSyncing) return;
+
+    this._isSyncing = true;
+    this.render(); // Show spinner
+
+    try {
+      // Import the main card class to access static methods
+      const Timer24HCard = customElements.get('timer-24h-card');
+      if (!Timer24HCard) {
+        throw new Error('Timer 24H Card not loaded');
+      }
+
+      const savedData = await Timer24HCard.readStorage(this._hass, this._config.storage_entity_id);
+      
+      // Merge saved config (only known keys)
+      const knownKeys = ['title', 'home_logic', 'entities', 'home_sensors', 'save_state'];
+      let hasChanges = false;
+
+      knownKeys.forEach(key => {
+        if (savedData[key] !== undefined && savedData[key] !== this._config[key]) {
+          this._config[key] = savedData[key];
+          hasChanges = true;
+        }
+      });
+
+      if (hasChanges) {
+        this._validateConfig();
+        this._fireConfigChanged();
+        this._showToast('Configuration synced from server!', 'success');
+      } else {
+        this._showToast('No changes found on server', 'info');
+      }
+
+    } catch (error) {
+      console.error('Failed to load saved state:', error);
+      this._showToast(`Failed to sync: ${error.message}`, 'error');
+    } finally {
+      this._isSyncing = false;
+      this.render();
     }
+  }
 
-    const entities = Object.keys(this.hass.states);
-    const sensors = entities.filter(e => 
-      e.startsWith('sensor.') || 
-      e.startsWith('binary_sensor.') || 
-      e.startsWith('person.') || 
-      e.startsWith('device_tracker.') ||
-      e.startsWith('input_boolean.')
-    ).sort();
+  /**
+   * Show toast message
+   * @param {string} message 
+   * @param {string} type 
+   */
+  _showToast(message, type = 'info') {
+    // Create a simple toast notification
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
     
-    const controllableEntities = entities.filter(e => 
-      e.startsWith('light.') || 
-      e.startsWith('switch.') || 
-      e.startsWith('fan.') || 
-      e.startsWith('climate.') || 
-      e.startsWith('media_player.') ||
-      e.startsWith('cover.') ||
-      e.startsWith('input_boolean.')
-    ).sort();
+    // Add to shadow root
+    this.shadowRoot.appendChild(toast);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.parentNode.removeChild(toast);
+      }
+    }, 3000);
+  }
 
-    const sensorsList = sensors.map(entityId => {
-      const entity = this.hass.states[entityId];
-      const isChecked = (this.config.home_sensors || []).includes(entityId);
-      const friendlyName = entity?.attributes?.friendly_name || entityId;
-      const domain = entityId.split('.')[0];
-      const icon = this.getEntityIcon(domain);
-      
-      return `
-        <div class="entity-item ${isChecked ? 'selected' : ''}">
-          <input type="checkbox" 
-                 ${isChecked ? 'checked' : ''} 
-                 data-entity="${entityId}"
-                 onchange="this.getRootNode().host.handleSensorChange(event)">
-          <div class="entity-info">
-            <span class="entity-icon">${icon}</span>
-            <div class="entity-details">
-              <span class="entity-name">${friendlyName}</span>
-              <span class="entity-id">${entityId}</span>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
+  /**
+   * Render the editor UI
+   */
+  render() {
+    if (!this.shadowRoot) return;
 
-    const entitiesList = controllableEntities.map(entityId => {
-      const entity = this.hass.states[entityId];
-      const isChecked = (this.config.entities || []).includes(entityId);
-      const friendlyName = entity?.attributes?.friendly_name || entityId;
-      const domain = entityId.split('.')[0];
-      const icon = this.getEntityIcon(domain);
-      
-      return `
-        <div class="entity-item ${isChecked ? 'selected' : ''}">
-          <input type="checkbox" 
-                 ${isChecked ? 'checked' : ''} 
-                 data-entity="${entityId}"
-                 onchange="this.getRootNode().host.handleEntityChange(event)">
-          <div class="entity-info">
-            <span class="entity-icon">${icon}</span>
-            <div class="entity-details">
-              <span class="entity-name">${friendlyName}</span>
-              <span class="entity-id">${entityId}</span>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
+    const controlledEntities = this._getEntitiesByDomains(this.CONTROLLED_DOMAINS);
+    const sensorEntities = this._getEntitiesByDomains(this.SENSOR_DOMAINS);
 
     this.shadowRoot.innerHTML = `
       <style>
         :host {
           display: block;
-          font-family: var(--primary-font-family, sans-serif);
-        }
-        
-        .card-config {
           padding: 16px;
-          background: var(--card-background-color, #ffffff);
-          border-radius: var(--ha-card-border-radius, 12px);
+          font-family: var(--primary-font-family, sans-serif);
+          --primary-color: var(--accent-color, #03a9f4);
+          --error-color: #f44336;
+          --success-color: #4caf50;
+          --warning-color: #ff9800;
         }
-        
-        .config-header {
-          text-align: center;
+
+        .section {
           margin-bottom: 24px;
-          padding-bottom: 16px;
-          border-bottom: 1px solid var(--divider-color, #e5e7eb);
+          padding: 16px;
+          border: 1px solid var(--divider-color, #e0e0e0);
+          border-radius: 8px;
+          background: var(--card-background-color, #fff);
         }
-        
-        .config-header h2 {
-          margin: 0 0 8px 0;
-          color: var(--primary-text-color, #212121);
-          font-size: 1.5rem;
-        }
-        
-        .config-header p {
-          margin: 0;
-          color: var(--secondary-text-color, #727272);
-        }
-        
-        .config-row {
-          margin-bottom: 20px;
-        }
-        
-        .config-row label {
-          display: block;
-          margin-bottom: 8px;
-          font-weight: 500;
-          color: var(--primary-text-color, #212121);
-        }
-        
-        .config-row input[type="text"] {
-          width: 100%;
-          padding: 8px 12px;
-          border: 1px solid var(--divider-color, #e5e7eb);
-          border-radius: 4px;
-          font-size: 14px;
-          box-sizing: border-box;
-        }
-        
-        .config-row select {
-          width: 100%;
-          padding: 8px 12px;
-          border: 1px solid var(--divider-color, #e5e7eb);
-          border-radius: 4px;
-          font-size: 14px;
-          box-sizing: border-box;
-        }
-        
-        .help-text {
-          font-size: 12px;
-          color: var(--secondary-text-color, #727272);
-          margin-top: 4px;
-        }
-        
+
         .section-title {
-          font-size: 1.1rem;
-          font-weight: 600;
-          margin: 24px 0 12px 0;
-          color: var(--primary-text-color, #212121);
-          border-bottom: 2px solid var(--primary-color, #3b82f6);
-          padding-bottom: 4px;
-        }
-        
-        .entity-list {
-          max-height: 200px;
-          overflow-y: auto;
-          border: 1px solid var(--divider-color, #e5e7eb);
-          border-radius: 4px;
-          padding: 8px;
-        }
-        
-        .entity-item {
-          display: flex;
-          align-items: center;
-          padding: 8px;
-          border-radius: 4px;
-          margin-bottom: 4px;
-          cursor: pointer;
-          transition: background-color 0.2s;
-        }
-        
-        .entity-item:hover {
-          background-color: var(--secondary-background-color, #f8f9fa);
-        }
-        
-        .entity-item.selected {
-          background-color: var(--primary-color, #3b82f6);
-          color: white;
-        }
-        
-        .entity-item input[type="checkbox"] {
-          margin-left: 8px;
-        }
-        
-        .entity-info {
-          display: flex;
-          align-items: center;
-          flex: 1;
-        }
-        
-        .entity-icon {
-          font-size: 1.2rem;
-          margin-left: 8px;
-        }
-        
-        .entity-details {
-          margin-right: 8px;
-        }
-        
-        .entity-name {
-          display: block;
-          font-weight: 500;
-        }
-        
-        .entity-id {
-          display: block;
-          font-size: 0.8rem;
-          opacity: 0.7;
-        }
-        
-        .checkbox-row {
+          font-size: 16px;
+          font-weight: bold;
+          margin-bottom: 16px;
+          color: var(--primary-text-color);
           display: flex;
           align-items: center;
           gap: 8px;
         }
-        
-        .checkbox-row input[type="checkbox"] {
-          margin: 0;
+
+        .form-group {
+          margin-bottom: 16px;
+        }
+
+        .form-label {
+          display: block;
+          margin-bottom: 4px;
+          font-weight: 500;
+          color: var(--primary-text-color);
+        }
+
+        .form-input {
+          width: 100%;
+          padding: 8px 12px;
+          border: 1px solid var(--divider-color, #e0e0e0);
+          border-radius: 4px;
+          font-size: 14px;
+          background: var(--card-background-color, #fff);
+          color: var(--primary-text-color);
+          box-sizing: border-box;
+        }
+
+        .form-input:focus {
+          outline: none;
+          border-color: var(--primary-color);
+          box-shadow: 0 0 0 2px rgba(3, 169, 244, 0.2);
+        }
+
+        .form-select {
+          width: 100%;
+          padding: 8px 12px;
+          border: 1px solid var(--divider-color, #e0e0e0);
+          border-radius: 4px;
+          font-size: 14px;
+          background: var(--card-background-color, #fff);
+          color: var(--primary-text-color);
+          cursor: pointer;
+        }
+
+        .entity-list {
+          max-height: 200px;
+          overflow-y: auto;
+          border: 1px solid var(--divider-color, #e0e0e0);
+          border-radius: 4px;
+          background: var(--card-background-color, #fff);
+        }
+
+        .entity-item {
+          display: flex;
+          align-items: center;
+          padding: 8px 12px;
+          border-bottom: 1px solid var(--divider-color, #e0e0e0);
+          cursor: pointer;
+          transition: background-color 0.2s;
+        }
+
+        .entity-item:hover {
+          background: var(--secondary-background-color, #f5f5f5);
+        }
+
+        .entity-item:last-child {
+          border-bottom: none;
+        }
+
+        .entity-checkbox {
+          margin-right: 12px;
+        }
+
+        .entity-info {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .entity-name {
+          font-weight: 500;
+          color: var(--primary-text-color);
+          margin-bottom: 2px;
+        }
+
+        .entity-id {
+          font-size: 12px;
+          color: var(--secondary-text-color);
+          font-family: monospace;
+        }
+
+        .entity-missing {
+          color: var(--error-color);
+          font-style: italic;
+        }
+
+        .search-box {
+          margin-bottom: 8px;
+          padding: 8px 12px;
+          width: 100%;
+          box-sizing: border-box;
+          border: 1px solid var(--divider-color, #e0e0e0);
+          border-radius: 4px;
+          font-size: 14px;
+        }
+
+        .button {
+          padding: 8px 16px;
+          border: none;
+          border-radius: 4px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .button:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .button-primary {
+          background: var(--primary-color);
+          color: white;
+        }
+
+        .button-primary:hover:not(:disabled) {
+          background: var(--primary-color);
+          filter: brightness(0.9);
+        }
+
+        .button-secondary {
+          background: var(--secondary-background-color, #f5f5f5);
+          color: var(--primary-text-color);
+          border: 1px solid var(--divider-color, #e0e0e0);
+        }
+
+        .button-secondary:hover:not(:disabled) {
+          background: var(--divider-color, #e0e0e0);
+        }
+
+        .toggle-switch {
+          position: relative;
+          display: inline-block;
+          width: 44px;
+          height: 24px;
+        }
+
+        .toggle-switch input {
+          opacity: 0;
+          width: 0;
+          height: 0;
+        }
+
+        .toggle-slider {
+          position: absolute;
+          cursor: pointer;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: #ccc;
+          transition: 0.2s;
+          border-radius: 24px;
+        }
+
+        .toggle-slider:before {
+          position: absolute;
+          content: "";
+          height: 18px;
+          width: 18px;
+          left: 3px;
+          bottom: 3px;
+          background-color: white;
+          transition: 0.2s;
+          border-radius: 50%;
+        }
+
+        input:checked + .toggle-slider {
+          background-color: var(--primary-color);
+        }
+
+        input:checked + .toggle-slider:before {
+          transform: translateX(20px);
+        }
+
+        .error-message {
+          color: var(--error-color);
+          font-size: 12px;
+          margin-top: 4px;
+        }
+
+        .info-text {
+          font-size: 12px;
+          color: var(--secondary-text-color);
+          margin-top: 4px;
+          line-height: 1.4;
+        }
+
+        .spinner {
+          display: inline-block;
+          width: 16px;
+          height: 16px;
+          border: 2px solid #f3f3f3;
+          border-top: 2px solid var(--primary-color);
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+
+        .toast {
+          position: fixed;
+          bottom: 20px;
+          right: 20px;
+          padding: 12px 16px;
+          border-radius: 4px;
+          color: white;
+          font-weight: 500;
+          z-index: 1000;
+          animation: slideIn 0.3s ease-out;
+        }
+
+        .toast-success { background: var(--success-color); }
+        .toast-error { background: var(--error-color); }
+        .toast-info { background: var(--primary-color); }
+        .toast-warning { background: var(--warning-color); }
+
+        @keyframes slideIn {
+          from { transform: translateX(100%); }
+          to { transform: translateX(0); }
+        }
+
+        .button-group {
+          display: flex;
+          gap: 8px;
+          margin-top: 16px;
+        }
+
+        .readonly-input {
+          background: var(--secondary-background-color, #f5f5f5);
+          color: var(--secondary-text-color);
+        }
+
+        .selected-count {
+          font-size: 12px;
+          color: var(--secondary-text-color);
+          margin-top: 4px;
         }
       </style>
-      
-      <div class="card-config">
-        <div class="config-header">
-          <h2>🕐 הגדרת כרטיס טיימר 24 שעות</h2>
-          <p>הגדר את הטיימר שלך עם בקרה אוטומטית על ישויות</p>
-        </div>
 
-        <div class="config-row">
-          <label for="title">כותרת הכרטיס</label>
-          <input type="text" 
-                 id="title" 
-                 value="${this.config.title || 'טיימר 24 שעות'}"
-                 placeholder="הכנס כותרת לכרטיס"
-                 oninput="this.getRootNode().host.handleTitleChange(event)">
-          <div class="help-text">הכותרת שתוצג בחלק העליון של הכרטיס</div>
+      <!-- Basic Configuration -->
+      <div class="section">
+        <div class="section-title">
+          🏠 Basic Configuration
         </div>
         
-        <div class="section-title">הגדרות זיהוי נוכחות</div>
-        
-        <div class="config-row">
-          <label>חיישנים לזיהוי נוכחות בבית</label>
-          <div class="entity-list">
-            ${sensorsList}
-          </div>
-          <div class="help-text">בחר חיישנים שיקבעו אם אתה בבית (person, binary_sensor, וכו')</div>
+        <div class="form-group">
+          <label class="form-label" for="title">Card Title</label>
+          <input 
+            type="text" 
+            id="title" 
+            class="form-input" 
+            .value="${this._config.title}"
+            @input="${(e) => this._handleConfigChange('title', e.target.value)}"
+            placeholder="Timer 24H"
+          />
+          ${this._configErrors.title ? `<div class="error-message">${this._configErrors.title}</div>` : ''}
         </div>
 
-        <div class="config-row">
-          <label for="home_logic">לוגיקת נוכחות</label>
-          <select id="home_logic" 
-                  onchange="this.getRootNode().host.handleLogicChange(event)">
-            <option value="OR" ${(this.config.home_logic || 'OR') === 'OR' ? 'selected' : ''}>
-              OR - אחד מהחיישנים מספיק
-            </option>
-            <option value="AND" ${this.config.home_logic === 'AND' ? 'selected' : ''}>
-              AND - כל החיישנים חייבים להיות פעילים
-            </option>
+        <div class="form-group">
+          <label class="form-label" for="home-logic">Home Logic</label>
+          <select 
+            id="home-logic" 
+            class="form-select"
+            .value="${this._config.home_logic}"
+            @change="${(e) => this._handleConfigChange('home_logic', e.target.value)}"
+          >
+            <option value="OR">OR - At least one sensor must be active</option>
+            <option value="AND">AND - All sensors must be active</option>
           </select>
-          <div class="help-text">איך לקבוע נוכחות בבית על בסיס החיישנים</div>
-        </div>
-
-        <div class="section-title">ישויות לבקרה</div>
-
-        <div class="config-row">
-          <label>ישויות לבקרה אוטומטית</label>
-          <div class="entity-list">
-            ${entitiesList}
+          <div class="info-text">
+            Determines how home sensors are evaluated to decide if you're "at home"
           </div>
-          <div class="help-text">בחר ישויות שיופעלו/יכובו לפי לוח הזמנים</div>
-        </div>
-
-        <div class="config-row">
-          <div class="checkbox-row">
-            <input type="checkbox" 
-                   id="save_state" 
-                   ${this.config.save_state !== false ? 'checked' : ''}
-                   onchange="this.getRootNode().host.handleSaveStateChange(event)">
-            <label for="save_state">שמור הגדרות טיימר ברמת השרת</label>
-          </div>
-          <div class="help-text">
-            שמור את הגדרות הטיימר ב-Home Assistant (סינכרון בין כל המכשירים)<br>
-            <small style="color: #10b981;">✅ אוטומטי - ללא צורך ביצירת helpers נוספים</small>
-          </div>
-          <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
-            <button type="button" 
-                    onclick="this.getRootNode().host.forceSyncFromServer()"
-                    style="padding: 6px 12px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
-              🔄 סנכרן מהשרת
-            </button>
-            <button type="button" 
-                    onclick="this.getRootNode().host.createStorageEntity()"
-                    style="padding: 6px 12px; background: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
-              🏗️ צור Entity לסינכרון
-            </button>
-          </div>
+          ${this._configErrors.home_logic ? `<div class="error-message">${this._configErrors.home_logic}</div>` : ''}
         </div>
       </div>
-    `;
 
-    // Add event listeners for checkboxes
-    this.shadowRoot.querySelectorAll('input[type="checkbox"][data-entity]').forEach(checkbox => {
-      checkbox.entityId = checkbox.getAttribute('data-entity');
+      <!-- Controlled Entities -->
+      <div class="section">
+        <div class="section-title">
+          ⚡ Controlled Entities
+          <span class="selected-count">(${this._config.entities.length} selected)</span>
+        </div>
+        <div class="info-text" style="margin-bottom: 12px;">
+          Select entities that will be turned on/off based on the timer schedule
+        </div>
+        
+        ${this._renderEntitySelector(controlledEntities, this._config.entities, 'entities')}
+        ${this._configErrors.entities ? `<div class="error-message">${this._configErrors.entities}</div>` : ''}
+      </div>
+
+      <!-- Home Sensors -->
+      <div class="section">
+        <div class="section-title">
+          📍 Home Sensors
+          <span class="selected-count">(${this._config.home_sensors.length} selected)</span>
+        </div>
+        <div class="info-text" style="margin-bottom: 12px;">
+          Select sensors that determine if you're at home (timer only works when at home)
+        </div>
+        
+        ${this._renderEntitySelector(sensorEntities, this._config.home_sensors, 'home_sensors')}
+        ${this._configErrors.home_sensors ? `<div class="error-message">${this._configErrors.home_sensors}</div>` : ''}
+      </div>
+
+      <!-- Server Persistence -->
+      <div class="section">
+        <div class="section-title">
+          💾 Server Persistence
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">
+            <label class="toggle-switch">
+              <input 
+                type="checkbox" 
+                .checked="${this._config.save_state}"
+                @change="${(e) => this._handleConfigChange('save_state', e.target.checked)}"
+              />
+              <span class="toggle-slider"></span>
+            </label>
+            Save state on server
+          </label>
+          <div class="info-text">
+            When enabled, the timer configuration will be saved to Home Assistant and synced across devices
+          </div>
+        </div>
+
+        ${this._config.save_state ? `
+          <div class="form-group">
+            <label class="form-label" for="storage-entity">Storage Entity ID</label>
+            <input 
+              type="text" 
+              id="storage-entity" 
+              class="form-input ${this._config.storage_entity_id ? 'readonly-input' : ''}" 
+              .value="${this._config.storage_entity_id}"
+              @input="${(e) => this._handleConfigChange('storage_entity_id', e.target.value)}"
+              placeholder="Will be auto-generated"
+              ?readonly="${!!this._config.storage_entity_id}"
+            />
+            <div class="info-text">
+              The input_text entity used to store the timer configuration
+            </div>
+          </div>
+
+          <div class="button-group">
+            <button 
+              class="button button-primary"
+              @click="${this._createStorageEntity}"
+              ?disabled="${!!this._config.storage_entity_id || this._isCreatingEntity || !this._hass}"
+            >
+              ${this._isCreatingEntity ? '<span class="spinner"></span>' : ''}
+              ${this._config.storage_entity_id ? 'Entity Created' : 'Create Storage Entity'}
+            </button>
+            
+            <button 
+              class="button button-secondary"
+              @click="${this._loadSavedState}"
+              ?disabled="${!this._config.storage_entity_id || this._isSyncing || !this._hass}"
+            >
+              ${this._isSyncing ? '<span class="spinner"></span>' : ''}
+              Sync from Server
+            </button>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  /**
+   * Render entity selector
+   * @param {HassEntity[]} entities 
+   * @param {string[]} selectedIds 
+   * @param {string} configKey 
+   */
+  _renderEntitySelector(entities, selectedIds, configKey) {
+    const searchId = `search-${configKey}`;
+    
+    return `
+      <input 
+        type="text" 
+        id="${searchId}"
+        class="search-box" 
+        placeholder="Search entities..."
+        @input="${(e) => this._filterEntities(e.target.value, configKey)}"
+      />
+      <div class="entity-list" id="list-${configKey}">
+        ${entities.map(entity => {
+          const isSelected = selectedIds.includes(entity.entity_id);
+          const isMissing = !this._hass || !this._hass.states[entity.entity_id];
+          const name = entity.attributes.friendly_name || entity.entity_id;
+          
+          return `
+            <div class="entity-item" @click="${() => this._toggleEntity(entity.entity_id, configKey)}">
+              <input 
+                type="checkbox" 
+                class="entity-checkbox"
+                .checked="${isSelected}"
+                @click="${(e) => e.stopPropagation()}"
+                @change="${(e) => this._toggleEntity(entity.entity_id, configKey)}"
+              />
+              <div class="entity-info">
+                <div class="entity-name ${isMissing ? 'entity-missing' : ''}">
+                  ${name} ${isMissing ? '(missing)' : ''}
+                </div>
+                <div class="entity-id">${entity.entity_id}</div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  /**
+   * Filter entities in the list
+   * @param {string} searchTerm 
+   * @param {string} configKey 
+   */
+  _filterEntities(searchTerm, configKey) {
+    const listElement = this.shadowRoot.getElementById(`list-${configKey}`);
+    if (!listElement) return;
+
+    const items = listElement.querySelectorAll('.entity-item');
+    const term = searchTerm.toLowerCase();
+
+    items.forEach(item => {
+      const name = item.querySelector('.entity-name').textContent.toLowerCase();
+      const id = item.querySelector('.entity-id').textContent.toLowerCase();
+      const matches = name.includes(term) || id.includes(term);
+      item.style.display = matches ? 'flex' : 'none';
     });
+  }
+
+  /**
+   * Toggle entity selection
+   * @param {string} entityId 
+   * @param {string} configKey 
+   */
+  _toggleEntity(entityId, configKey) {
+    const currentList = [...this._config[configKey]];
+    const index = currentList.indexOf(entityId);
+    
+    if (index >= 0) {
+      currentList.splice(index, 1);
+    } else {
+      currentList.push(entityId);
+    }
+    
+    this._handleConfigChange(configKey, currentList);
+    
+    // Re-render to update UI
+    this.render();
+  }
+
+  connectedCallback() {
+    this.render();
   }
 }
 
-// Register the custom element
-customElements.define('timer-24h-card-editor', Timer24HCardEditor);
+// Register the editor element
+if (!customElements.get('timer-24h-card-editor')) {
+  customElements.define('timer-24h-card-editor', Timer24HCardEditor);
+}
+
+console.info(
+  '%c  TIMER-24H-CARD-EDITOR  %c  Version 2.1.0 - Full GUI Editor  ',
+  'color: orange; font-weight: bold; background: black',
+  'color: white; font-weight: bold; background: dimgray'
+);
