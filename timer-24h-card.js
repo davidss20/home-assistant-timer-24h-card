@@ -120,7 +120,9 @@ class Timer24HCard extends HTMLElement {
   }
 
   set hass(hass) {
+    const wasHassAvailable = !!this._hass;
     this._hass = hass;
+        
     if (hass) {
       const oldHomeStatus = this.isAtHome;
     this.checkHomeStatus();
@@ -130,7 +132,18 @@ class Timer24HCard extends HTMLElement {
         }
         
         this.updateCurrentTime();
-      this.render();
+      
+      // אם hass לא היה זמין קודם, טען נתונים שמורים עכשיו
+      if (!wasHassAvailable && this.config?.save_state) {
+        this.loadSavedState().then(() => {
+          this.render();
+        }).catch(error => {
+          console.error('Timer Card: Error loading saved state on hass update:', error);
+          this.render();
+        });
+    } else {
+        this.render();
+      }
     }
   }
 
@@ -186,7 +199,45 @@ class Timer24HCard extends HTMLElement {
     
     this.updateInterval = setInterval(() => {
       this.updateCurrentTime();
+      
+      // בדוק סינכרון כל 2 דקות
+      if (this.config?.save_state && this.hass) {
+        this.checkForUpdates();
+      }
     }, 120000); // Check every 2 minutes
+  }
+
+  async checkForUpdates() {
+    try {
+      const cardId = this.generateCardId();
+      const entityId = `input_text.timer_24h_card_${cardId}`;
+      
+      if (this.hass && this.hass.states[entityId]) {
+        const entityState = this.hass.states[entityId];
+        const jsonData = entityState.state;
+        
+        if (jsonData && jsonData !== 'unknown' && jsonData !== '') {
+          try {
+            const data = JSON.parse(jsonData);
+            if (data.timeSlots && Array.isArray(data.timeSlots)) {
+              // בדוק אם יש שינויים
+              const currentDataStr = JSON.stringify(this.timeSlots);
+              const serverDataStr = JSON.stringify(data.timeSlots);
+              
+              if (currentDataStr !== serverDataStr) {
+                console.log('Timer Card: Detected changes from another device, syncing...');
+                this.timeSlots = data.timeSlots;
+                this.render();
+              }
+            }
+          } catch (parseError) {
+            console.warn('Timer Card: Failed to parse sync data:', parseError);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Timer Card: Failed to check for updates:', error);
+    }
   }
 
   checkHomeStatus() {
@@ -321,31 +372,38 @@ class Timer24HCard extends HTMLElement {
       // Try to save to an input_text entity
       const jsonData = JSON.stringify(data);
       
-      // Check if entity exists, if not create it
-      if (!this.hass.states[entityId]) {
-        try {
-          await this.hass.callService('input_text', 'set_value', {
-            entity_id: entityId,
-            value: jsonData
-          });
-        } catch (createError) {
-          // Entity doesn't exist, try to create it dynamically
-          await this.createInputTextEntity(cardId, this.config.title);
-          // Try again after creation
-          await this.hass.callService('input_text', 'set_value', {
-            entity_id: entityId,
-            value: jsonData
-          });
-        }
-      } else {
-        // Entity exists, just update it
+      // נסה לשמור ב-entity, אם לא קיים ננסה ליצור
+      try {
         await this.hass.callService('input_text', 'set_value', {
           entity_id: entityId,
           value: jsonData
         });
+        console.log(`Timer Card: State saved to Home Assistant entity: ${entityId}`);
+      } catch (saveError) {
+        console.warn('Timer Card: Entity does not exist, attempting to create it');
+        
+        // נסה ליצור את ה-entity
+        try {
+          await this.createInputTextEntity(cardId, this.config.title);
+          
+          // חכה קצת ונסה שוב
+          setTimeout(async () => {
+            try {
+              await this.hass.callService('input_text', 'set_value', {
+                entity_id: entityId,
+                value: jsonData
+              });
+              console.log(`Timer Card: State saved to newly created entity: ${entityId}`);
+            } catch (retryError) {
+              console.warn('Timer Card: Failed to save even after entity creation, using localStorage');
+              localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(this.timeSlots));
+            }
+          }, 2000);
+        } catch (createError) {
+          console.warn('Timer Card: Could not create entity, using localStorage fallback');
+          localStorage.setItem(`timer-24h-${this.config.title}`, JSON.stringify(this.timeSlots));
+        }
       }
-      
-      console.log(`Timer Card: State saved to Home Assistant entity: ${entityId}`);
     } catch (error) {
       console.warn('Timer Card: Failed to save to Home Assistant, using localStorage fallback:', error);
       // Fallback to localStorage if Home Assistant storage fails
@@ -477,49 +535,68 @@ input_text:
     const outerRadius = 180;
     const innerRadius = 50;
 
-    const outerSectors = Array.from({ length: 24 }, (_, hour) => {
-      const sectorPath = this.createSectorPath(hour, 24, innerRadius, outerRadius, centerX, centerY);
-      const textPos = this.getTextPosition(hour, 24, (innerRadius + outerRadius) / 2, centerX, centerY);
-      const slot = this.timeSlots.find(s => s.hour === hour && s.minute === 0);
-      const isActive = slot?.isActive || false;
-        const isCurrent = this.currentTime.getHours() === hour && this.currentTime.getMinutes() < 30;
+        const sectors = Array.from({ length: 24 }, (_, hour) => {
+      const middleRadius = (innerRadius + outerRadius) / 2;
+      
+      // חצי חיצוני (שעה מלאה - 00)
+      const outerSectorPath = this.createSectorPath(hour, 24, middleRadius, outerRadius, centerX, centerY);
+      const outerTextPos = this.getTextPosition(hour, 24, (middleRadius + outerRadius) / 2, centerX, centerY);
+      const outerSlot = this.timeSlots.find(s => s.hour === hour && s.minute === 0);
+      const outerIsActive = outerSlot?.isActive || false;
+      const outerIsCurrent = this.currentTime.getHours() === hour && this.currentTime.getMinutes() < 30;
+      
+      // חצי פנימי (חצי שעה - 30)
+      const innerSectorPath = this.createSectorPath(hour, 24, innerRadius, middleRadius, centerX, centerY);
+      const innerTextPos = this.getTextPosition(hour, 24, (innerRadius + middleRadius) / 2, centerX, centerY);
+      const innerSlot = this.timeSlots.find(s => s.hour === hour && s.minute === 30);
+      const innerIsActive = innerSlot?.isActive || false;
+      const innerIsCurrent = this.currentTime.getHours() === hour && this.currentTime.getMinutes() >= 30;
+      
+      // אינדיקטור שעה נוכחית
+      let currentTimeIndicator = '';
+      if (outerIsCurrent || innerIsCurrent) {
+        const indicatorAngle = ((hour + 0.5) * 360 / 24 - 90) * (Math.PI / 180);
+        const indicatorX = centerX + (outerRadius + 10) * Math.cos(indicatorAngle);
+        const indicatorY = centerY + (outerRadius + 10) * Math.sin(indicatorAngle);
         
+        currentTimeIndicator = `
+          <circle cx="${indicatorX}" cy="${indicatorY}" r="4" 
+                  fill="#ff6b6b" stroke="#ffffff" stroke-width="2">
+            <animate attributeName="r" values="4;6;4" dur="2s" repeatCount="indefinite"/>
+          </circle>
+        `;
+      }
+      
       return `
-        <path d="${sectorPath}" 
-              fill="${isActive ? '#10b981' : '#ffffff'}"
-              stroke="${isCurrent ? '#3b82f6' : '#e5e7eb'}"
-              stroke-width="${isCurrent ? '3' : '1'}"
-              style="cursor: pointer; transition: opacity 0.2s;"
+        <!-- חצי חיצוני (שעה מלאה) -->
+        <path d="${outerSectorPath}" 
+              fill="${outerIsActive ? '#10b981' : '#ffffff'}"
+              stroke="${outerIsCurrent ? '#ff6b6b' : '#e5e7eb'}"
+              stroke-width="${outerIsCurrent ? '3' : '1'}"
+              style="cursor: pointer; transition: all 0.2s;"
               onclick="this.getRootNode().host.toggleTimeSlot(${hour}, 0)"/>
-        <text x="${textPos.x}" y="${textPos.y + 3}" 
-              text-anchor="middle" font-size="10" font-weight="bold"
+        <text x="${outerTextPos.x}" y="${outerTextPos.y + 2}" 
+              text-anchor="middle" font-size="9" font-weight="bold"
               style="pointer-events: none; user-select: none;"
-              fill="${isActive ? '#ffffff' : '#374151'}">
+              fill="${outerIsActive ? '#ffffff' : '#374151'}">
           ${this.getTimeLabel(hour, 0)}
         </text>
-      `;
-    }).join('');
-
-    const innerSectors = Array.from({ length: 24 }, (_, hour) => {
-      const sectorPath = this.createSectorPath(hour, 24, 50, innerRadius, centerX, centerY);
-      const textPos = this.getTextPosition(hour, 24, (50 + innerRadius) / 2, centerX, centerY);
-      const slot = this.timeSlots.find(s => s.hour === hour && s.minute === 30);
-      const isActive = slot?.isActive || false;
-        const isCurrent = this.currentTime.getHours() === hour && this.currentTime.getMinutes() >= 30;
         
-      return `
-        <path d="${sectorPath}" 
-              fill="${isActive ? '#10b981' : '#ffffff'}"
-              stroke="${isCurrent ? '#3b82f6' : '#e5e7eb'}"
-              stroke-width="${isCurrent ? '3' : '1'}"
-              style="cursor: pointer; transition: opacity 0.2s;"
+        <!-- חצי פנימי (חצי שעה) -->
+        <path d="${innerSectorPath}" 
+              fill="${innerIsActive ? '#10b981' : '#f8f9fa'}"
+              stroke="${innerIsCurrent ? '#ff6b6b' : '#e5e7eb'}"
+              stroke-width="${innerIsCurrent ? '3' : '1'}"
+              style="cursor: pointer; transition: all 0.2s;"
               onclick="this.getRootNode().host.toggleTimeSlot(${hour}, 30)"/>
-        <text x="${textPos.x}" y="${textPos.y + 2}" 
-              text-anchor="middle" font-size="8" font-weight="bold"
+        <text x="${innerTextPos.x}" y="${innerTextPos.y + 1}" 
+              text-anchor="middle" font-size="7" font-weight="bold"
               style="pointer-events: none; user-select: none;"
-              fill="${isActive ? '#ffffff' : '#374151'}">
+              fill="${innerIsActive ? '#ffffff' : '#6b7280'}">
           ${this.getTimeLabel(hour, 30)}
         </text>
+        
+        ${currentTimeIndicator}
       `;
     }).join('');
 
@@ -607,14 +684,17 @@ input_text:
         
         <div class="timer-container">
           <svg class="timer-svg" viewBox="0 0 400 400">
+            <!-- עיגולים חיצוניים -->
             <circle cx="${centerX}" cy="${centerY}" r="${outerRadius}" 
                     fill="none" stroke="#e5e7eb" stroke-width="2"/>
             <circle cx="${centerX}" cy="${centerY}" r="${innerRadius}" 
                     fill="none" stroke="#e5e7eb" stroke-width="2"/>
+            <!-- עיגול אמצע המפריד בין חצי פנימי וחיצוני -->
+            <circle cx="${centerX}" cy="${centerY}" r="${(innerRadius + outerRadius) / 2}" 
+                    fill="none" stroke="#d1d5db" stroke-width="1.5"/>
             
             ${dividerLines}
-            ${outerSectors}
-            ${innerSectors}
+            ${sectors}
           </svg>
         </div>
       </div>
