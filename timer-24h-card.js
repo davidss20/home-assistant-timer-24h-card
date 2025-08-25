@@ -990,198 +990,191 @@ console.info(
   'color: white; font-weight: bold; background: dimgray'
 );
 
-// Load editor component
-(async () => {
-  try {
-    // Try to load external editor file
-    await import('./timer-24h-card-editor.js');
-  } catch (e) {
-    console.warn('Timer Card: External editor not found, using inline editor');
+// Simple, bulletproof inline editor - no external dependencies
+class Timer24HCardEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.innerHTML = ''; // Start clean
+    this._config = null;
+    this._hass = null;
+  }
+
+  setConfig(config) {
+    // Ultra-safe config handling
+    this._config = {};
     
-    // Inline editor fallback
-    class Timer24HCardEditor extends HTMLElement {
-      constructor() {
-        super();
-        this.attachShadow({ mode: 'open' });
-        this._config = {
-          title: 'Timer 24H',
-          home_logic: 'OR',
-          entities: [],
-          home_sensors: [],
-          save_state: false,
-          storage_entity_id: '',
-          auto_create_helper: true,
-          allow_local_fallback: true
-        };
-        this._hass = null;
+    try {
+      this._config.title = (config && typeof config.title === 'string') ? config.title : 'Timer 24H';
+      this._config.home_logic = (config && config.home_logic === 'AND') ? 'AND' : 'OR';
+      this._config.entities = [];
+      this._config.home_sensors = [];
+      this._config.save_state = (config && config.save_state === true) ? true : false;
+      this._config.storage_entity_id = (config && typeof config.storage_entity_id === 'string') ? config.storage_entity_id : '';
+      
+      // Handle arrays safely
+      if (config && config.entities && Array.isArray(config.entities)) {
+        this._config.entities = config.entities.slice(); // Copy array
       }
-
-      setConfig(config) {
-        this._config = {
-          title: (config && config.title) ? config.title : 'Timer 24H',
-          home_logic: (config && config.home_logic) ? config.home_logic : 'OR',
-          entities: (config && Array.isArray(config.entities)) ? config.entities : [],
-          home_sensors: (config && Array.isArray(config.home_sensors)) ? config.home_sensors : [],
-          save_state: (config && config.save_state) ? true : false,
-          storage_entity_id: (config && config.storage_entity_id) ? config.storage_entity_id : '',
-          auto_create_helper: (config && config.auto_create_helper !== false) ? true : false,
-          allow_local_fallback: (config && config.allow_local_fallback !== false) ? true : false
-        };
-        this.render();
+      if (config && config.home_sensors && Array.isArray(config.home_sensors)) {
+        this._config.home_sensors = config.home_sensors.slice(); // Copy array
       }
-
-      set hass(hass) {
-        this._hass = hass;
-        this.render();
-      }
-
-      _handleChange(key, value) {
-        this._config[key] = value;
-        this.dispatchEvent(new CustomEvent('config-changed', {
-          detail: { config: { ...this._config } },
-          bubbles: true,
-          composed: true
-        }));
-      }
-
-      render() {
-        if (!this.shadowRoot) return;
-        
-        // Ensure config exists and has required properties
-        if (!this._config) {
-          this._config = {
-            title: 'Timer 24H',
-            home_logic: 'OR',
-            entities: [],
-            home_sensors: [],
-            save_state: false,
-            storage_entity_id: '',
-            auto_create_helper: true,
-            allow_local_fallback: true
-          };
-        }
-        
-        // Ensure arrays are initialized
-        if (!Array.isArray(this._config.entities)) {
-          this._config.entities = [];
-        }
-        if (!Array.isArray(this._config.home_sensors)) {
-          this._config.home_sensors = [];
-        }
-
-        this.shadowRoot.innerHTML = `
-          <style>
-            :host {
-              display: block;
-              padding: 16px;
-              font-family: var(--primary-font-family, sans-serif);
-            }
-            .form-group {
-              margin-bottom: 16px;
-            }
-            .form-label {
-              display: block;
-              margin-bottom: 4px;
-              font-weight: 500;
-            }
-            .form-input, .form-select {
-              width: 100%;
-              padding: 8px;
-              border: 1px solid #ccc;
-              border-radius: 4px;
-              font-size: 14px;
-            }
-            .toggle {
-              display: flex;
-              align-items: center;
-              gap: 8px;
-            }
-          </style>
-          
-          <div class="form-group">
-            <label class="form-label">Card Title</label>
-            <input 
-              type="text" 
-              class="form-input" 
-              value="${this._config.title}"
-              id="title-input"
-            />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Home Logic</label>
-            <select 
-              class="form-select"
-              id="logic-select"
-            >
-              <option value="OR" ${this._config.home_logic === 'OR' ? 'selected' : ''}>OR - At least one sensor active</option>
-              <option value="AND" ${this._config.home_logic === 'AND' ? 'selected' : ''}>AND - All sensors active</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <div class="toggle">
-              <input 
-                type="checkbox" 
-                id="save-state-checkbox"
-                ${this._config.save_state ? 'checked' : ''}
-              />
-              <label class="form-label">Save state on server</label>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Controlled Entities (comma separated)</label>
-            <input 
-              type="text" 
-              class="form-input" 
-              value="${(this._config.entities && Array.isArray(this._config.entities)) ? this._config.entities.join(', ') : ''}"
-              id="entities-input"
-              placeholder="switch.living_room, light.kitchen"
-            />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Home Sensors (comma separated)</label>
-            <input 
-              type="text" 
-              class="form-input" 
-              value="${(this._config.home_sensors && Array.isArray(this._config.home_sensors)) ? this._config.home_sensors.join(', ') : ''}"
-              id="sensors-input"
-              placeholder="person.john, binary_sensor.motion"
-            />
-          </div>
-        `;
-
-        // Add event listeners
-        const titleInput = this.shadowRoot.getElementById('title-input');
-        const logicSelect = this.shadowRoot.getElementById('logic-select');
-        const saveStateCheckbox = this.shadowRoot.getElementById('save-state-checkbox');
-        const entitiesInput = this.shadowRoot.getElementById('entities-input');
-        const sensorsInput = this.shadowRoot.getElementById('sensors-input');
-
-        titleInput?.addEventListener('input', (e) => this._handleChange('title', e.target.value));
-        logicSelect?.addEventListener('change', (e) => this._handleChange('home_logic', e.target.value));
-        saveStateCheckbox?.addEventListener('change', (e) => this._handleChange('save_state', e.target.checked));
-        entitiesInput?.addEventListener('input', (e) => {
-          const entities = e.target.value ? e.target.value.split(',').map(s => s.trim()).filter(s => s) : [];
-          this._handleChange('entities', entities);
-        });
-        sensorsInput?.addEventListener('input', (e) => {
-          const sensors = e.target.value ? e.target.value.split(',').map(s => s.trim()).filter(s => s) : [];
-          this._handleChange('home_sensors', sensors);
-        });
-      }
-
-      connectedCallback() {
-        this.render();
-      }
+    } catch (e) {
+      console.warn('Timer Card Editor: Config parsing error, using defaults', e);
     }
+    
+    this._render();
+  }
 
-    // Register the inline editor
-    if (!customElements.get('timer-24h-card-editor')) {
-      customElements.define('timer-24h-card-editor', Timer24HCardEditor);
-      console.info('Timer Card: Inline editor registered');
+  set hass(hass) {
+    this._hass = hass;
+  }
+
+  _fireConfigChanged() {
+    try {
+      const event = new CustomEvent('config-changed', {
+        detail: { config: JSON.parse(JSON.stringify(this._config)) }, // Deep copy
+        bubbles: true,
+        composed: true
+      });
+      this.dispatchEvent(event);
+    } catch (e) {
+      console.warn('Timer Card Editor: Failed to fire config change', e);
     }
   }
-})();
+
+  _render() {
+    try {
+      // Safe string conversion for entities
+      let entitiesStr = '';
+      let sensorsStr = '';
+      
+      try {
+        if (Array.isArray(this._config.entities)) {
+          entitiesStr = this._config.entities.join(', ');
+        }
+      } catch (e) {
+        entitiesStr = '';
+      }
+      
+      try {
+        if (Array.isArray(this._config.home_sensors)) {
+          sensorsStr = this._config.home_sensors.join(', ');
+        }
+      } catch (e) {
+        sensorsStr = '';
+      }
+
+      this.innerHTML = 
+        '<div style="padding: 16px; font-family: var(--primary-font-family, sans-serif);">' +
+          '<div style="margin-bottom: 16px;">' +
+            '<label style="display: block; margin-bottom: 4px; font-weight: 500;">Card Title</label>' +
+            '<input type="text" id="title-input" value="' + (this._config.title || 'Timer 24H') + '" ' +
+            'style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" />' +
+          '</div>' +
+
+          '<div style="margin-bottom: 16px;">' +
+            '<label style="display: block; margin-bottom: 4px; font-weight: 500;">Home Logic</label>' +
+            '<select id="logic-select" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">' +
+              '<option value="OR"' + (this._config.home_logic === 'OR' ? ' selected' : '') + '>OR - At least one sensor active</option>' +
+              '<option value="AND"' + (this._config.home_logic === 'AND' ? ' selected' : '') + '>AND - All sensors active</option>' +
+            '</select>' +
+          '</div>' +
+
+          '<div style="margin-bottom: 16px;">' +
+            '<label style="display: flex; align-items: center; gap: 8px;">' +
+              '<input type="checkbox" id="save-state-checkbox"' + (this._config.save_state ? ' checked' : '') + ' />' +
+              '<span style="font-weight: 500;">Save state on server</span>' +
+            '</label>' +
+          '</div>' +
+
+          '<div style="margin-bottom: 16px;">' +
+            '<label style="display: block; margin-bottom: 4px; font-weight: 500;">Controlled Entities (comma separated)</label>' +
+            '<input type="text" id="entities-input" value="' + entitiesStr + '" ' +
+            'placeholder="switch.living_room, light.kitchen" ' +
+            'style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" />' +
+          '</div>' +
+
+          '<div style="margin-bottom: 16px;">' +
+            '<label style="display: block; margin-bottom: 4px; font-weight: 500;">Home Sensors (comma separated)</label>' +
+            '<input type="text" id="sensors-input" value="' + sensorsStr + '" ' +
+            'placeholder="person.john, binary_sensor.motion" ' +
+            'style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" />' +
+          '</div>' +
+        '</div>';
+
+      // Add event listeners safely
+      setTimeout(() => {
+        try {
+          const titleInput = this.querySelector('#title-input');
+          const logicSelect = this.querySelector('#logic-select');
+          const saveStateCheckbox = this.querySelector('#save-state-checkbox');
+          const entitiesInput = this.querySelector('#entities-input');
+          const sensorsInput = this.querySelector('#sensors-input');
+
+          if (titleInput) {
+            titleInput.addEventListener('input', (e) => {
+              this._config.title = e.target.value || 'Timer 24H';
+              this._fireConfigChanged();
+            });
+          }
+
+          if (logicSelect) {
+            logicSelect.addEventListener('change', (e) => {
+              this._config.home_logic = e.target.value === 'AND' ? 'AND' : 'OR';
+              this._fireConfigChanged();
+            });
+          }
+
+          if (saveStateCheckbox) {
+            saveStateCheckbox.addEventListener('change', (e) => {
+              this._config.save_state = e.target.checked;
+              this._fireConfigChanged();
+            });
+          }
+
+          if (entitiesInput) {
+            entitiesInput.addEventListener('input', (e) => {
+              try {
+                const value = e.target.value || '';
+                this._config.entities = value ? value.split(',').map(s => s.trim()).filter(s => s.length > 0) : [];
+                this._fireConfigChanged();
+              } catch (err) {
+                this._config.entities = [];
+                this._fireConfigChanged();
+              }
+            });
+          }
+
+          if (sensorsInput) {
+            sensorsInput.addEventListener('input', (e) => {
+              try {
+                const value = e.target.value || '';
+                this._config.home_sensors = value ? value.split(',').map(s => s.trim()).filter(s => s.length > 0) : [];
+                this._fireConfigChanged();
+              } catch (err) {
+                this._config.home_sensors = [];
+                this._fireConfigChanged();
+              }
+            });
+          }
+        } catch (e) {
+          console.warn('Timer Card Editor: Failed to add event listeners', e);
+        }
+      }, 100);
+
+    } catch (e) {
+      console.error('Timer Card Editor: Render failed', e);
+      this.innerHTML = '<div style="padding: 16px; color: red;">Editor failed to load. Please use YAML mode.</div>';
+    }
+  }
+}
+
+// Register editor immediately and safely
+try {
+  if (!customElements.get('timer-24h-card-editor')) {
+    customElements.define('timer-24h-card-editor', Timer24HCardEditor);
+    console.info('Timer Card: Bulletproof inline editor registered');
+  }
+} catch (e) {
+  console.error('Timer Card: Failed to register editor', e);
+}
