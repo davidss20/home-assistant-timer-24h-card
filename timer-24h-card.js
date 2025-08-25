@@ -10,6 +10,8 @@ class Timer24HCard extends HTMLElement {
     this.isAtHome = false;
     this.lastControlledStates = new Map();
     this.updateInterval = null;
+    this.config = null;
+    this._hass = null;
   }
 
   // Home Assistant required methods
@@ -45,8 +47,20 @@ class Timer24HCard extends HTMLElement {
       ...config
     };
     
+    // Load saved state asynchronously
     this.loadSavedState().then(() => {
-      this.render();
+      if (this.shadowRoot) {
+        this.render();
+      }
+    }).catch(error => {
+      console.error('Timer Card: Error loading saved state:', error);
+      // Ensure timeSlots is still an array even if loading fails
+      if (!Array.isArray(this.timeSlots)) {
+        this.timeSlots = this.initializeTimeSlots();
+      }
+      if (this.shadowRoot) {
+        this.render();
+      }
     });
   }
 
@@ -85,6 +99,7 @@ class Timer24HCard extends HTMLElement {
       slots.push({ hour, minute: 0, isActive: false });
       slots.push({ hour, minute: 30, isActive: false });
     }
+    console.log('Timer Card: Initialized timeSlots with', slots.length, 'slots');
     return slots;
   }
 
@@ -154,6 +169,11 @@ class Timer24HCard extends HTMLElement {
     if (!this.hass || !this.config.entities?.length || !this.isAtHome) {
       return;
     }
+    
+    // Ensure timeSlots is an array
+    if (!Array.isArray(this.timeSlots)) {
+      this.timeSlots = this.initializeTimeSlots();
+    }
 
     const currentHour = this.currentTime.getHours();
     const currentMinute = this.currentTime.getMinutes();
@@ -195,6 +215,11 @@ class Timer24HCard extends HTMLElement {
   }
 
   toggleTimeSlot(hour, minute) {
+    // Ensure timeSlots is an array
+    if (!Array.isArray(this.timeSlots)) {
+      this.timeSlots = this.initializeTimeSlots();
+    }
+    
     const slot = this.timeSlots.find(s => s.hour === hour && s.minute === minute);
     if (slot) {
       slot.isActive = !slot.isActive;
@@ -293,7 +318,7 @@ input_text:
         if (jsonData && jsonData !== 'unknown' && jsonData !== '') {
           try {
             const data = JSON.parse(jsonData);
-            if (data.timeSlots) {
+            if (data.timeSlots && Array.isArray(data.timeSlots)) {
               this.timeSlots = data.timeSlots;
               console.log(`Timer Card: State loaded from Home Assistant entity: ${entityId}`);
               return;
@@ -311,12 +336,15 @@ input_text:
     const saved = localStorage.getItem(`timer-24h-${this.config.title}`);
     if (saved) {
       try {
-        this.timeSlots = JSON.parse(saved);
-        console.log('Timer Card: State loaded from localStorage (fallback)');
-        
-        // Migrate to Home Assistant storage if possible
-        if (this.hass) {
-          setTimeout(() => this.saveState(), 1000); // Delay to ensure hass is ready
+        const parsedData = JSON.parse(saved);
+        if (Array.isArray(parsedData)) {
+          this.timeSlots = parsedData;
+          console.log('Timer Card: State loaded from localStorage (fallback)');
+          
+          // Migrate to Home Assistant storage if possible
+          if (this.hass) {
+            setTimeout(() => this.saveState(), 1000); // Delay to ensure hass is ready
+          }
         }
       } catch (error) {
         console.error('Timer Card: Failed to load saved state:', error);
@@ -362,6 +390,11 @@ input_text:
 
   render() {
     if (!this.config) return;
+    
+    // Ensure timeSlots is always an array
+    if (!Array.isArray(this.timeSlots)) {
+      this.timeSlots = this.initializeTimeSlots();
+    }
 
     const centerX = 200;
     const centerY = 200;
