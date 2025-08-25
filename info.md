@@ -13,23 +13,25 @@ A custom Lovelace card for Home Assistant that provides a 24-hour circular timer
 - **💾 Settings persistence** in browser storage
 - **📡 Multiple update channels** (Stable/Beta/Development)
 
-## 🚀 Latest Version Features
+## 🚀 Latest Version 2.1.0 Features
 
-### 🌍 Multi-Language Support
-- Automatic language detection from Home Assistant
-- Full Hebrew translation with RTL support
-- Browser language fallback
+### 🎯 Enhanced Visual Design
+- **Split sectors**: Each hour divided into outer (full hour) and inner (half hour) segments
+- **Current time indicator**: Red pulsing circle shows current time segment
+- **Clear separation**: Visual divider between inner and outer rings
+- **Better contrast**: Improved colors for active/inactive states
 
-### 🎯 Smart Automation Status
-- Real-time indication if entities will activate
-- Center circle shows current automation status
-- Sensor-based blocking (e.g., Shabbat mode)
+### 🔄 True Cross-Device Sync
+- **Server-side storage**: Data saved in Home Assistant (not browser)
+- **Auto-sync**: Changes sync across all devices within 2 minutes
+- **Real-time updates**: See changes from other devices automatically
+- **No setup required**: Creates storage entities automatically
 
-### 🎨 Modern UI
-- Clean, minimal design
-- Optimized spacing and typography
-- Responsive layout for all screen sizes
-- Professional visual configuration editor
+### 🎨 Modern UI Improvements
+- **Animated indicators**: Pulsing current time marker
+- **Grid layout support**: Full compatibility with new HA sections
+- **Responsive design**: Works perfectly on all screen sizes
+- **Professional editor**: Enhanced visual configuration interface
 
 ## 📦 Installation
 

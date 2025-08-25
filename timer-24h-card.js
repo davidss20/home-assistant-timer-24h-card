@@ -1,5 +1,5 @@
 // Timer 24H Card for Home Assistant
-// Version 2.0.0
+// Version 2.1.0
 
 class Timer24HCard extends HTMLElement {
   constructor() {
@@ -366,7 +366,7 @@ class Timer24HCard extends HTMLElement {
       const data = {
         timeSlots: this.timeSlots,
         timestamp: Date.now(),
-        version: '2.0.0'
+        version: '2.1.0'
       };
       
       // Try to save to an input_text entity
@@ -773,7 +773,7 @@ if (Timer24HCard && Timer24HCard.prototype) {
 }
 
 console.info(
-  '%c  TIMER-24H-CARD  %c  Version 2.0.0 - Grid Compatible  ',
+  '%c  TIMER-24H-CARD  %c  Version 2.1.0 - Enhanced UI & Sync  ',
   'color: orange; font-weight: bold; background: black',
   'color: white; font-weight: bold; background: dimgray'
 );

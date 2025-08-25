@@ -24,7 +24,7 @@ A custom card for Home Assistant that allows you to set a daily schedule with au
 - **🕐 24-hour circular timer** with half-hour segments
 - **🏠 Home presence detection** - entities will only be activated when you are at home
 - **🔧 Automatic entity control** according to the schedule
-- **💾 Settings persistence** in browser
+- **💾 Server-side sync** across all devices
 - **🌍 Multi-language support** with RTL support
 - **⚙️ Graphical configuration editor** easy to use
 
