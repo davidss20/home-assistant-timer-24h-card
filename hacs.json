@@ -5,7 +5,8 @@
   "filename": "timer-24h-card.js",
   "hacs": "1.6.0",
   "domains": ["lovelace"],
-  "iot_class": "Calculated",
-  "homeassistant": "0.115.0",
-  "zip_release": false
+  "iot_class": "Local Polling",
+  "homeassistant": "2023.1.0",
+  "zip_release": false,
+  "persistent_directory": false
 } 

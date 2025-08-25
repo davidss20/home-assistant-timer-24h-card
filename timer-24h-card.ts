@@ -24,15 +24,16 @@ interface TimeSlot {
   isActive: boolean;
 }
 
-interface GridOptions {
-  rows: number;
-  columns: number;
-  min_rows?: number;
-  min_columns?: number;
-}
+
 
 // Validation schema
-const CARD_CONFIG_SCHEMA = {
+interface SchemaProperty {
+  type: string;
+  optional: boolean;
+  enum?: string[];
+}
+
+const CARD_CONFIG_SCHEMA: Record<string, SchemaProperty> = {
   title: { type: 'string', optional: true },
   home_sensors: { type: 'array', optional: true },
   home_logic: { type: 'string', enum: ['OR', 'AND'], optional: true },
@@ -52,7 +53,7 @@ export class Timer24HCard extends LitElement implements LovelaceCard {
   private lastHomeStatus?: boolean;
   private updateInterval?: number;
 
-  // Grid support for new Sections layout
+  // Grid support
   public static getLayoutOptions() {
     return {
       grid_rows: 2,
@@ -62,39 +63,13 @@ export class Timer24HCard extends LitElement implements LovelaceCard {
     };
   }
 
-  // Alternative method name that HA might use
-  public static getGridOptions(): GridOptions {
-    return {
-      rows: 2,
-      columns: 6,
-      min_rows: 2,
-      min_columns: 3
-    };
-  }
-
-  // Masonry support for legacy layouts
   public getCardSize(): number {
     return 3;
   }
 
-  // Dynamic card size based on content
-  public getCardHeight(): number {
-    return 2; // Grid rows
-  }
-
-  public getCardWidth(): number {
-    return 6; // Grid columns
-  }
-
   public static async getConfigElement() {
-    // Ensure the editor is imported and available
-    if (!customElements.get('timer-24h-card-editor')) {
-      try {
-        await import('./timer-24h-card-editor.js');
-      } catch (e) {
-        console.warn('Could not load timer-24h-card-editor:', e);
-      }
-    }
+    // Dynamically import the editor for Home Assistant
+    await import('./timer-24h-card-editor.js');
     return document.createElement('timer-24h-card-editor');
   }
 
@@ -108,21 +83,7 @@ export class Timer24HCard extends LitElement implements LovelaceCard {
     };
   }
 
-  // Card metadata for Home Assistant
-  public static get cardInfo() {
-    return {
-      type: 'timer-24h-card',
-      name: 'Timer 24H Card',
-      description: 'A 24-hour timer card with automatic entity control',
-      preview: true,
-      grid_options: {
-        rows: 2,
-        columns: 6,
-        min_rows: 2,
-        min_columns: 3
-      }
-    };
-  }
+
 
   constructor() {
     super();
@@ -139,12 +100,7 @@ export class Timer24HCard extends LitElement implements LovelaceCard {
       save_state: true,
       ...config
     };
-    // Load saved state with error handling
-    if (typeof this.loadSavedState === 'function') {
-      this.loadSavedState();
-    } else {
-      console.error('Timer Card: loadSavedState method is not defined');
-    }
+    this.loadSavedState();
   }
 
   private validateConfig(config: Timer24HCardConfig): void {
@@ -348,6 +304,7 @@ export class Timer24HCard extends LitElement implements LovelaceCard {
       // Clear control memory when manually changing settings
       this.lastControlledStates.clear();
       this.controlEntities();
+      this.requestUpdate();
     }
   }
 
@@ -358,19 +315,15 @@ export class Timer24HCard extends LitElement implements LovelaceCard {
   }
 
   private loadSavedState(): void {
-    try {
-      if (this.config && this.config.save_state) {
-        const saved = localStorage.getItem(`timer-24h-${this.config.title}`);
-        if (saved) {
-          try {
-            this.timeSlots = JSON.parse(saved);
-          } catch (error) {
-            console.error('Timer Card: Failed to load saved state:', error);
-          }
+    if (this.config?.save_state) {
+      const saved = localStorage.getItem(`timer-24h-${this.config.title}`);
+      if (saved) {
+        try {
+          this.timeSlots = JSON.parse(saved);
+        } catch (error) {
+          console.error('Timer Card: Failed to load saved state:', error);
         }
       }
-    } catch (error) {
-      console.error('Timer Card: Error in loadSavedState:', error);
     }
   }
 
@@ -403,17 +356,7 @@ export class Timer24HCard extends LitElement implements LovelaceCard {
     return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
   }
 
-  private isCurrentTimeSlotActive(): boolean {
-    const currentHour = this.currentTime.getHours();
-    const currentMinute = this.currentTime.getMinutes();
-    const minute = currentMinute < 30 ? 0 : 30;
-    
-    const currentSlot = this.timeSlots.find(slot => 
-      slot.hour === currentHour && slot.minute === minute
-    );
-    
-    return currentSlot?.isActive || false;
-  }
+
 
   protected render(): TemplateResult {
     const centerX = 200;
@@ -631,32 +574,19 @@ export class Timer24HCard extends LitElement implements LovelaceCard {
   }
 }
 
-// Add card info to console
+// Card info for Home Assistant
 console.info(
   '%c  TIMER-24H-CARD  %c  Version 2.0.0  ',
   'color: orange; font-weight: bold; background: black',
   'color: white; font-weight: bold; background: dimgray',
 );
 
-// Register card for HACS and Home Assistant
+// Register card for HACS and Home Assistant UI
 (window as any).customCards = (window as any).customCards || [];
 (window as any).customCards.push({
   type: 'timer-24h-card',
   name: 'Timer 24H Card',
-  description: 'A 24-hour timer card with automatic entity control',
+  description: 'כרטיס טיימר 24 שעות עם בקרה אוטומטית על ישויות',
   preview: true,
-  documentationURL: 'https://github.com/davidss20/timer-24h-card',
-  grid_options: {
-    rows: 2,
-    columns: 6,
-    min_rows: 2,
-    min_columns: 3
-  }
+  documentationURL: 'https://github.com/davidss20/home-assistant-timer-card'
 });
-
-// Register with Home Assistant's card registry
-if ((window as any).customElements && (window as any).customElements.get('timer-24h-card')) {
-  console.log('Timer 24H Card already registered');
-} else {
-  console.log('Registering Timer 24H Card');
-}

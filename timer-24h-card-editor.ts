@@ -56,8 +56,8 @@ export class Timer24HCardEditor extends LitElement implements LovelaceCardEditor
     return html`
       <div class="card-config">
         <div class="config-header">
-          <h2>🕐 Timer 24H Card Configuration</h2>
-          <p>Configure your 24-hour timer with automatic entity control</p>
+          <h2>🕐 הגדרת כרטיס טיימר 24 שעות</h2>
+          <p>הגדר את הטיימר שלך עם בקרה אוטומטית על ישויות</p>
         </div>
 
         <div class="config-row">
