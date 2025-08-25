@@ -1106,6 +1106,20 @@ class Timer24HCardEditor extends HTMLElement {
 
       this.innerHTML = 
         '<div style="padding: 16px; font-family: var(--primary-font-family, sans-serif);">' +
+          '<div style="display: flex; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #e0e0e0;">' +
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="2em" height="2em" ' +
+            'style="margin-right: 12px;" role="img" aria-label="Home timer icon" ' +
+            'fill="none" stroke-linecap="round" stroke-linejoin="round">' +
+              '<path d="M4 11l8-6 8 6v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" fill="#41BDF5" stroke="#41BDF5"/>' +
+              '<path d="M11 9h2" stroke="white" stroke-width="1.6"/>' +
+              '<circle cx="12" cy="15" r="3.5" stroke="white" stroke-width="1.6" fill="none"/>' +
+              '<path d="M12 15l2-2" stroke="white" stroke-width="1.6"/>' +
+            '</svg>' +
+            '<div>' +
+              '<h2 style="margin: 0; font-size: 1.5em; color: #333;">Timer 24H Card Configuration</h2>' +
+              '<p style="margin: 4px 0 0 0; color: #666; font-size: 0.9em;">Configure your 24-hour timer with entity control</p>' +
+            '</div>' +
+          '</div>' +
           '<div style="margin-bottom: 16px;">' +
             '<label style="display: block; margin-bottom: 4px; font-weight: 500;">Card Title</label>' +
             '<input type="text" id="title-input" value="' + (this._config.title || 'Timer 24H') + '" ' +
